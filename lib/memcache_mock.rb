@@ -14,12 +14,28 @@ class MemCacheMock
   def cache_key(key)
     "#{namespace}:#{key}"
   end
+
+  # Note:  This doesn't work exactly like memcache's incr
+  # because MemCacheMock doesn't support raw storage.
+  # This version will work on marshalled data.
+  # This is also not atomic.
+  def incr(key, amount=1)
+    oldval = get(key).to_i or return nil
+    newval = oldval + amount
+    set(key, newval) # Note: Loses the expiry.
+    return newval
+  end
+
+  def decr(key, amount=1)
+    incr(key, amount * -1)
+  end
   
   def set(*args)
     do_set(*args)
   end
 
-  def do_set(key, value, expiry = 0)
+  # Note:  Raw not implemented.
+  def do_set(key, value, expiry = 0, raw=false)
     return '' if @auto_clear
     key = cache_key(key)
 
@@ -56,7 +72,8 @@ class MemCacheMock
     hash
   end
 
-  def get(key)
+  # Note:  Raw not implemented.
+  def get(key, raw=false)
     key = cache_key(key)
     clear if @auto_clear
     if @expiry[key] and Time.now > @expiry[key]
@@ -105,4 +122,5 @@ class MemCacheMock
     block.call
     @auto_clear = old_auto_clear
   end
+
 end
