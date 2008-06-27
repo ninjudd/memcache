@@ -1,5 +1,5 @@
 Gem::Specification.new do |s|
-	s.name = 'geni-memcache-client'
+	s.name = 'ninjudd-memcache-client'
 	s.version = '1.5.0.3'
 	s.authors = ['Eric Hodel', 'Robert Cottrell', 'Mike Perham', 'Justin Balthrop']
 	s.email = 'justin@geni.com'
