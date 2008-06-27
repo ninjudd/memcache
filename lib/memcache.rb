@@ -10,7 +10,7 @@ class String
   ##
   # Uses the ITU-T polynomial in the CRC32 algorithm.
   begin
-    require 'crc32'
+    require File.dirname(__FILE__) + '/crc32'
     def crc32_ITU_T
       CRC32.itu_t(self)
     end
