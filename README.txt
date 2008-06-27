@@ -1,7 +1,7 @@
 = memcache-client
 
-This is the FiveRuns fork of seattle.rb's memcache-client 1.5.0.  We've fixed several bugs
-which are in that version.
+This is the Geni fork of the FiveRuns fork of seattle.rb's memcache-client 1.5.0.  They've fixed several bugs
+which are in that version, and we've added some extensions needed to support record_cache.
 
 Rubyforge Project:
 
@@ -15,7 +15,7 @@ http://seattlerb.org/memcache-client
 
 Just install the gem:
 
-  $ sudo gem install fiveruns-memcache-client --source http://gems.github.com
+  $ sudo gem install ninjudd-memcache-client --source http://gems.github.com
 
 == Using memcache-client
 
