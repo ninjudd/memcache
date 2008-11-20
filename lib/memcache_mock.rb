@@ -15,6 +15,10 @@ class MemCacheMock
     "#{namespace}:#{key}"
   end
 
+  def default_expiry
+    0
+  end
+
   # Note:  This doesn't work exactly like memcache's incr
   # because MemCacheMock doesn't support raw storage.
   # This version will work on marshalled data.
@@ -35,7 +39,7 @@ class MemCacheMock
   end
 
   # Note:  Raw not implemented.
-  def do_set(key, value, expiry = 0, raw=false)
+  def do_set(key, value, expiry = default_expiry, raw=false)
     return '' if @auto_clear
     key = cache_key(key)
 
@@ -45,7 +49,8 @@ class MemCacheMock
   end
 
   def add(key, value, expiry = 0)
-    do_set(key, value, expiry) unless get(key)
+    return '' if get(key)
+    do_set(key, value, expiry)
   end
 
   def kind_of?(type)

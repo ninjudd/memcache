@@ -46,11 +46,11 @@ end
 # approaching a complete implementation.
 
 class MemCache
-
+  
   ##
   # The version of MemCache you are using.
 
-  VERSION = '1.5.0.1'
+  VERSION = '1.5.0.2' unless defined? VERSION
 
   ##
   # Default options for the cache object.
@@ -59,17 +59,27 @@ class MemCache
     :namespace   => nil,
     :readonly    => false,
     :multithread => false,
-  }
+  } unless defined? DEFAULT_OPTIONS
 
   ##
   # Default memcached port.
 
-  DEFAULT_PORT = 11211
+  DEFAULT_PORT = 11211 unless defined? DEFAULT_PORT
 
   ##
   # Default memcached server weight.
 
-  DEFAULT_WEIGHT = 1
+  DEFAULT_WEIGHT = 1 unless defined? DEFAULT_WEIGHT
+
+  ##
+  # Default number of servers to try connecting to.
+  
+  DEFAULT_FALLBACK = 20 unless defined? DEFAULT_FALLBACK
+
+  ##
+  # Default expiry if none is specified.
+  
+  DEFAULT_EXPIRY = 0 unless defined? DEFAULT_EXPIRY
 
   ##
   # The amount of time to wait for a response from a memcached server.  If a
@@ -94,15 +104,24 @@ class MemCache
   attr_reader :servers
 
   ##
+  # Number of servers to try connecting to.
+  attr_reader :fallback
+
+  ##
+  # Default expiry if none is specified.
+  attr_reader :default_expiry
+
+  ##
   # Accepts a list of +servers+ and a list of +opts+.  +servers+ may be
   # omitted.  See +servers=+ for acceptable server list arguments.
   #
   # Valid options for +opts+ are:
   #
-  #   [:namespace]   Prepends this value to all keys added or retrieved.
-  #   [:readonly]    Raises an exeception on cache writes when true.
-  #   [:multithread] Wraps cache access in a Mutex for thread safety.
-  #
+  #   [:namespace]       Prepends this value to all keys added or retrieved.
+  #   [:readonly]        Raises an exeception on cache writes when true.
+  #   [:multithread]     Wraps cache access in a Mutex for thread safety.
+  #   [:fallback]        Number of servers to try before failing.
+  #   [:default_expiry]  Default expiry if none is specified.
   # Other options are ignored.
 
   def initialize(*args)
@@ -126,12 +145,14 @@ class MemCache
     end
 
     opts = DEFAULT_OPTIONS.merge opts
-    @namespace   = opts[:namespace]
-    @readonly    = opts[:readonly]
-    @multithread = opts[:multithread]
-    @mutex       = Mutex.new if @multithread
-    @buckets     = []
-    self.servers = servers
+    @namespace      = opts[:namespace]
+    @readonly       = opts[:readonly]
+    @multithread    = opts[:multithread]
+    @fallback       = opts[:fallback] || DEFAULT_FALLBACK
+    @default_expiry = opts[:default_expiry].to_i || DEFAULT_EXPIRY
+    @mutex          = Mutex.new if @multithread
+    @buckets        = []
+    self.servers    = servers
   end
 
   ##
@@ -198,7 +219,7 @@ class MemCache
       cache_decr server, cache_key, amount
     end
   rescue TypeError => err
-    handle_error server, err
+    handle_error nil, err
   end
 
   ##
@@ -209,11 +230,11 @@ class MemCache
     with_server(key) do |server, cache_key|
       value = cache_get server, cache_key
       return nil if value.nil?
-      value = Marshal.load value unless raw
+      value = Marshal.load(value) unless raw
       return value
     end
   rescue TypeError => err
-    handle_error server, err
+    handle_error nil, err
   end
 
   ##
@@ -235,6 +256,8 @@ class MemCache
   def get_multi(*keys)
     raise MemCacheError, 'No active servers' unless active?
 
+    opts = keys.last.kind_of?(Hash) ? keys.pop : {}
+    
     keys.flatten!
     key_count = keys.length
     cache_keys = {}
@@ -253,13 +276,13 @@ class MemCache
       keys = keys.join ' '
       values = cache_get_multi server, keys
       values.each do |key, value|
-        results[cache_keys[key]] = Marshal.load value
+        results[cache_keys[key]] = opts[:raw] ? value : Marshal.load(value)
       end
     end
 
     return results
   rescue TypeError => err
-    handle_error server, err
+    handle_error nil, err
   end
 
   ##
@@ -273,7 +296,7 @@ class MemCache
       cache_incr server, cache_key, amount
     end
   rescue TypeError => err
-    handle_error server, err
+    handle_error nil, err
   end
   
   ##
@@ -283,26 +306,11 @@ class MemCache
   # Warning: Readers should not call this method in the event of a cache miss;
   # see MemCache#add.
 
-  def set(key, value, expiry = 0, raw = false)
+  def set(key, value, expiry = default_expiry, raw = false)
     raise MemCacheError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
-
       value = Marshal.dump value unless raw
-      command = "set #{cache_key} 0 #{expiry} #{value.to_s.size}\r\n#{value}\r\n"
-
-      with_socket_management(server) do |socket|
-        socket.write command
-        result = socket.gets
-  			if result.nil?
-          server.close
-          raise MemCacheError, "lost connection to #{server.host}:#{server.port}"
-        end
-
-  			if result =~ /^SERVER_ERROR (.*)/
-          server.close
-          raise MemCacheError, $1.strip
-  			end
-      end
+      cache_store(:set, cache_key, value, expiry, server)
     end
   end
 
@@ -314,23 +322,18 @@ class MemCache
   # Readers should call this method in the event of a cache miss, not
   # MemCache#set or MemCache#[]=.
 
-  def add(key, value, expiry = 0, raw = false)
+  def add(key, value, expiry = default_expiry, raw = false)
     raise MemCacheError, "Update of readonly cache" if @readonly
     with_server(key) do |server, cache_key|
       value = Marshal.dump value unless raw
-      command = "add #{cache_key} 0 #{expiry} #{value.size}\r\n#{value}\r\n"
-
-      with_socket_management(server) do |socket|
-        socket.write command
-        socket.gets
-      end
+      cache_store(:add, cache_key, value, expiry, server)
     end
   end
   
   ##
   # Removes +key+ from the cache in +expiry+ seconds.
 
-  def delete(key, expiry = 0)
+  def delete(key, expiry = default_expiry)
     raise MemCacheError, "Update of readonly cache" if @readonly
     server, cache_key = request_setup key
 
@@ -469,15 +472,14 @@ class MemCache
   # Pick a server to handle the request based on a hash of the key.
 
   def get_server_for_key(key)
-    raise ArgumentError, "illegal character in key #{key.inspect}" if
-      key =~ /\s/
+    raise ArgumentError, "illegal character in key #{key.inspect}" if key =~ /\s/
     raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
     raise MemCacheError, "No servers available" if @servers.empty?
     return @servers.first if @servers.length == 1
 
     hkey = hash_for key
 
-    20.times do |try|
+    fallback.times do |try|
       server = @buckets[hkey % @buckets.nitems]
       return server if server.alive?
       hkey += hash_for "#{try}#{key}"
@@ -557,6 +559,31 @@ class MemCache
 
       server.close
       raise MemCacheError, "lost connection to #{server.host}:#{server.port}" # TODO: retry here too
+    end
+  end
+
+  ##
+  # Stores +value+ to +cache_keys+ on +server+ using +method+ (must be :set or :add).
+
+  def cache_store(method, cache_key, value, expiry, server)
+    raise MemCacheError, "unknown store method #{method}" unless [:set, :add].include?(method)
+    
+    command = "#{method} #{cache_key} 0 #{expiry} #{value.to_s.size}\r\n#{value}\r\n"
+
+    with_socket_management(server) do |socket|
+      socket.write command
+      result = socket.gets
+      if result.nil?
+        server.close
+        raise MemCacheError, "lost connection to #{server.host}:#{server.port}"
+      end
+
+      if result =~ /^SERVER_ERROR (.*)/
+        server.close
+        raise MemCacheError, "%s:\n%s" % [$1.strip, Marshal.restore(value).inspect]
+      end
+
+      result
     end
   end
 
@@ -650,13 +677,13 @@ class MemCache
     # server.  If a connection cannot be established within this time limit,
     # the server will be marked as down.
 
-    CONNECT_TIMEOUT = 0.25
+    CONNECT_TIMEOUT = 1.0 unless defined? CONNECT_TIMEOUT
 
     ##
     # The amount of time to wait before attempting to re-establish a
     # connection with a server that is marked dead.
 
-    RETRY_DELAY = 30.0
+    RETRY_DELAY = 30.0 unless defined? RETRY_DELAY
 
     ##
     # The host the memcached server is running on.

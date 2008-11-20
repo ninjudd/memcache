@@ -1,21 +1,21 @@
-if not defined?(MemCache)
-  require File.dirname(__FILE__) + '/memcache'
-end
+# Need to override entire class with Justin's changes
+require File.dirname(__FILE__) + '/memcache'
 
 module MemCacheExtensions
   LOCK_TIMEOUT    = 5     if not defined? LOCK_TIMEOUT
   WRITE_LOCK_WAIT = 0.001 if not defined? WRITE_LOCK_WAIT
 
-  def get_some(keys, disable = false)
+  def get_some(keys, opts = {})
+    opts[:expiry] ||= default_expiry
     keys = keys.collect {|key| key.to_s}
 
     records = {}
-    records = self.get_multi(keys) unless disable
+    records = self.get_multi(keys) unless opts[:disable]
     keys_to_fetch = keys - records.keys
 
     if keys_to_fetch.any?
       yield(keys_to_fetch).each do |key, data_item|
-        self.set(key, data_item) unless disable
+        self.set(key, data_item, opts[:expiry]) unless opts[:disable] or opts[:disable_write]
         records[key] = data_item
       end
     end
@@ -95,8 +95,11 @@ module MemCacheExtensions
     end
   end
 
+  def clear
+    flush_all
+  end
+
   ### To support using memcache in testing.
-  def clear; end
   def empty?; false; end
   ###
 end
