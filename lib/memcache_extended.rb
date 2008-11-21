@@ -11,6 +11,11 @@ module MemCacheExtensions
 
     records = {}
     records = self.get_multi(keys) unless opts[:disable]
+    if opts[:validation]
+      records.delete_if do |key, value|
+        not opts[:validation].call(key, value)
+      end
+    end
     keys_to_fetch = keys - records.keys
 
     if keys_to_fetch.any?
