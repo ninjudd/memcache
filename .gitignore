@@ -1,0 +1,6 @@
+ext/crc32/Makefile
+ext/crc32/crc32.o
+ext/crc32/crc32.so
+ext/crc32/crc32.bundle
+lib/crc32.so
+lib/crc32.bundle
