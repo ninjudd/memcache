@@ -463,10 +463,11 @@ class MemCache
   # requested.
 
   def make_cache_key(key)
+    safe_key = key ? key.gsub(/%/, '%%').gsub(/ /, '%s') : key
     if namespace.nil? then
-      key
+      safe_key
     else
-      "#{namespace}:#{key}"
+      "#{namespace}:#{safe_key}"
     end
   end
 
