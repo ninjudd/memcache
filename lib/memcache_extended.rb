@@ -27,14 +27,19 @@ module MemCacheExtensions
     records
   end
 
+  # Returns the namespace for the current thread.
+  def namespace
+    Thread.current[:memcache_namespace] || @namespace
+  end
+
   def in_namespace(namespace)
     begin
       # Temporarily change the namespace for convenience.
-      ns = self.namespace
-      self.instance_variable_set(:@namespace, "#{ns}#{namespace}")      
+      old_namespace = Thread.current[:memcache_namespace]
+      Thread.current[:memcache_namespace] = "#{old_namespace || @namespace}#{namespace}"
       yield
     ensure
-      self.instance_variable_set(:@namespace, ns)
+      Thread.current[:memcache_namespace] = old_namespace
     end
   end
 

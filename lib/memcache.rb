@@ -160,7 +160,7 @@ class MemCache
 
   def inspect
     "<MemCache: %d servers, %d buckets, ns: %p, ro: %p>" %
-      [@servers.length, @buckets.length, @namespace, @readonly]
+      [@servers.length, @buckets.length, namespace, @readonly]
   end
 
   ##
@@ -464,7 +464,7 @@ class MemCache
     if namespace.nil? then
       key
     else
-      "#{@namespace}:#{key}"
+      "#{namespace}:#{key}"
     end
   end
 
