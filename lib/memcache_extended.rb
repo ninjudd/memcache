@@ -27,11 +27,6 @@ module MemCacheExtensions
     records
   end
 
-  # Returns the namespace for the current thread.
-  def namespace
-    Thread.current[:memcache_namespace] || @namespace
-  end
-
   def in_namespace(namespace)
     begin
       # Temporarily change the namespace for convenience.

@@ -24,4 +24,21 @@ class TestGeniMemcache < Test::Unit::TestCase
     
     assert_equal 'quick brown fox', m.get('rewrite_test')
   end
+
+  def test_in_namespace
+    cache = MemCache.new 'localhost:1', :namespace => 'ns'
+
+    threads = []
+    100.times do |i|
+      threads << Thread.new do
+        cache.in_namespace(i.to_s) do
+          sleep 0.1
+          assert_equal "ns#{i}", cache.namespace
+        end
+      end
+    end
+    
+    threads.each {|t| t.join}
+  end
+
 end

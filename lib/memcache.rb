@@ -89,11 +89,6 @@ class MemCache
   attr_accessor :request_timeout
 
   ##
-  # The namespace for this instance
-
-  attr_reader :namespace
-
-  ##
   # The multithread setting for this instance
 
   attr_reader :multithread
@@ -153,6 +148,13 @@ class MemCache
     @mutex          = Mutex.new if @multithread
     @buckets        = []
     self.servers    = servers
+  end
+
+  ##
+  # Returns the namespace for the current thread.
+
+  def namespace
+    Thread.current[:memcache_namespace] || @namespace
   end
 
   ##
