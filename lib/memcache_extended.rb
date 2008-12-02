@@ -30,11 +30,11 @@ module MemCacheExtensions
   def in_namespace(namespace)
     begin
       # Temporarily change the namespace for convenience.
-      old_namespace = Thread.current[:memcache_namespace]
-      Thread.current[:memcache_namespace] = "#{old_namespace || @namespace}#{namespace}"
+      old_namespace = self.namespace
+      self.namespace = "#{old_namespace}#{namespace}"
       yield
     ensure
-      Thread.current[:memcache_namespace] = old_namespace
+      self.namespace = old_namespace
     end
   end
 

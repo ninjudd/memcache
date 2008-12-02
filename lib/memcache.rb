@@ -158,6 +158,17 @@ class MemCache
   end
 
   ##
+  # Set the namespace for the current thread.
+  
+  def namespace=(namespace)
+    if namespace == @namespace
+      Thread.current[:memcache_namespace] = nil
+    else
+      Thread.current[:memcache_namespace] = namespace
+    end
+  end
+
+  ##
   # Returns a string representation of the cache object.
 
   def inspect
@@ -463,7 +474,7 @@ class MemCache
   # requested.
 
   def make_cache_key(key)
-    safe_key = key ? key.gsub(/%/, '%%').gsub(/ /, '%s') : key
+    safe_key = key ? key.to_s.gsub(/%/, '%%').gsub(/ /, '%s') : key
     if namespace.nil? then
       safe_key
     else
