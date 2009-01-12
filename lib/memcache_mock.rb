@@ -44,7 +44,7 @@ class MemCacheMock
     key = cache_key(key)
 
     @data[key] = Marshal.dump(value)
-    @expiry[key] = Time.now + expiry if expiry != 0
+    @expiry[key] = Time.now + expiry if expiry and expiry != 0
     'STORED'
   end
 

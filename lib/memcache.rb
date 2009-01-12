@@ -4,6 +4,7 @@ require 'socket'
 require 'thread'
 require 'timeout'
 require 'rubygems'
+require File.dirname(__FILE__) + '/memcache_mock'
 
 class String
 
@@ -46,11 +47,10 @@ end
 # approaching a complete implementation.
 
 class MemCache
-  
   ##
   # The version of MemCache you are using.
 
-  VERSION = '1.5.0.2' unless defined? VERSION
+  VERSION = '1.5.0.3' unless defined? VERSION
 
   ##
   # Default options for the cache object.
@@ -827,6 +827,35 @@ class MemCache
   # Base MemCache exception class.
 
   class MemCacheError < RuntimeError; end
+
+  class CachePool
+    attr_reader :fallback
+
+    def initialize
+      @cache_by_scope = { :default => MemCacheMock.new }
+      @fallback = :default
+    end
+    
+    def include?(scope)
+      @cache_by_scope.include?(scope.to_sym)
+    end
+
+    def fallback=(scope)
+      @fallback = scope.to_sym
+    end
+
+    def [](scope)
+      @cache_by_scope[scope.to_sym] || @cache_by_scope[fallback]
+    end
+    
+    def []=(scope, cache)
+      @cache_by_scope[scope.to_sym] = cache
+    end
+  end
+  
+  def self.pool
+    @@cache_pool ||= CachePool.new
+  end
 
 end
 
