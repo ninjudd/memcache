@@ -68,11 +68,13 @@ class MemCacheMock
   end
   
   def get_multi(*keys)
+    opts = keys.last.kind_of?(Hash) ? keys.pop : {}
+    keys.flatten!
+
     hash = {}
     keys.each do |key|
       val = get(key)
-      key = cache_key(key).sub("#{namespace}:",'')
-      hash[key] = val if val
+      hash[key.to_s] = val if val
     end
     hash
   end
