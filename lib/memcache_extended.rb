@@ -47,24 +47,23 @@ module MemCacheExtensions
   end
 
   def get_reset_expiry(key, expiry)
+    # TODO - fix race condition
     result = get(key)
     set(key, result, expiry) if result
     result
   end
-
-  def lock(key)
+  
+  def lock(key, opts = {})
     # Returns true if the lock already exists.
-    response = add(lock_key(key), true, LOCK_TIMEOUT)
-    response.index('STORED') != 0
+    not add(key, true, opts[:timeout)
   end
 
   def unlock(key)
-    response = delete(lock_key(key))
-    response.index('DELETED') == 0
+    delete(key)
   end
 
-  def with_lock(key, flag = nil)
-    while lock(key) do
+  def with_lock(key, opts[:timeout])
+    until add(key) do
       return if flag == :ignore
       sleep(WRITE_LOCK_WAIT) # just wait
     end
