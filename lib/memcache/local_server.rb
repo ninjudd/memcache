@@ -34,7 +34,7 @@ class Memcache
       hash
     end
 
-    def incr(key, amount)
+    def incr(key, amount = 1)
       key = key.to_s
       value = get(key)
       return unless value
@@ -45,23 +45,23 @@ class Memcache
       value
     end
 
-    def delete(key, expiry)
+    def delete(key, expiry = nil)
       if expiry
-        old_expiry = @expiry[key.to_s] || expiry
+        old_expiry = @expiry[key.to_s] || Time.now + expiry
         @expiry[key.to_s] = [old_expiry, expiry].min
       else
         @data.delete(key.to_s)
       end
     end
 
-    def set(key, value, expiry)
+    def set(key, value, expiry = nil)
       key = key.to_s
       @data[key]   = value
       @expiry[key] = Time.now + expiry if expiry and expiry != 0
       value
     end
 
-    def add(key, value, expiry)
+    def add(key, value, expiry = nil)
       return false if get(key)
       set(key, value, expiry)
     end

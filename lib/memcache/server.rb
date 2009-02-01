@@ -118,7 +118,7 @@ class Memcache
       end
     end
 
-    def incr(key, amount)
+    def incr(key, amount = 1)
       check_writable!
       if amount < 0
         method = 'decr'
@@ -132,17 +132,21 @@ class Memcache
       return response.to_i
     end
 
-    def delete(key, expiry)
+    def delete(key, expiry = 0)
       check_writable!
       send_command("delete #{cache_key} #{expiry}") == "DELETED\r\n"
     end
 
-    def set(key, value, expiry)
-      store(:set, key, value, expiry)
-      value
+    def set(key, value, expiry = 0)
+      if value
+        store(:set, key, value, expiry)
+        value
+      else
+        delete(key)
+      end
     end
 
-    def add(key, value, expiry)
+    def add(key, value, expiry = 0)
       response = store(:add, key, value, expiry)
       response == "STORED\r\n" ? value : nil
     end
