@@ -163,11 +163,6 @@ class TestMemCache < Test::Unit::TestCase
                  server.socket.written.string
   end
 
-  def test_crc32_ITU_T
-    assert_equal 0, ''.crc32_ITU_T
-    assert_equal 1260851911, 'my_namespace:key'.crc32_ITU_T
-  end
-
   def test_initialize
     cache = MemCache.new :namespace => 'my_namespace', :readonly => true
 
