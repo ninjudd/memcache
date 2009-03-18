@@ -88,6 +88,8 @@ class Memcache
       send_command("flush_all #{delay}")
     end
 
+    alias clear flush_all
+
     def get(key)
       send_command("get #{key}") do |response|
         return nil if response == "END\r\n"
@@ -134,7 +136,7 @@ class Memcache
 
     def delete(key, expiry = 0)
       check_writable!
-      send_command("delete #{cache_key} #{expiry}") == "DELETED\r\n"
+      send_command("delete #{key} #{expiry}") == "DELETED\r\n"
     end
 
     def set(key, value, expiry = 0)

@@ -77,17 +77,15 @@ class Memcache
   private
  
     def store(method, key, value, expiry)
-      
-
-      expires_at = Time.now + expiry
+      expires_at = Time.now + expiry if expiry
       begin
         sql = %{
           INSERT INTO #{table} (key, value, updated_at, expires_at)
-            VALUES ('#{key}', ?, ?, ?)
+            VALUES ('#{key}', '#{value}', ?, ?)
         }
-        ActiveRecord::Base.send(:sanitize_sql, condition)
+        ActiveRecord::Base.send(:sanitize_sql, [sql, Time.now)
 
-        db.execute 
+        db.execute(sql)
       rescue ActiveRecord::StatementInvalid => e
         return nil if method == :add 
         db.execute %{

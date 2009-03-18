@@ -15,7 +15,7 @@ module MemcacheServerTestHelper
     m.set(3, '4,5')
     
     expected = { '2' => '1,2,3', '3' => '4,5' }
-    assert_equal expected, m.get_multi(2,3)
+    assert_equal expected, m.get_multi([2,3])
   end
   
   def test_delete
@@ -28,20 +28,20 @@ module MemcacheServerTestHelper
     assert_equal nil, m.get(2)
   end
 
-  def test_clear
+  def test_flush_all
     m.set(2, 'bar')
     
     assert_equal 'bar', m.get(2)
 
-    m.clear
+    m.flush_all
     
     assert_equal nil, m.get(2)
   end
     
   def test_expiry
-    m.add('test', 1, 0.1)
-    assert_equal 1, m.get('test')
-    sleep(0.1)
+    m.add('test', '1', 1)
+    assert_equal '1', m.get('test')
+    sleep(2)
     assert_equal nil, m.get('test')    
   end
 end
