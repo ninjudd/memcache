@@ -4,7 +4,7 @@ class Memcache
 
     def initialize(opts)
       @table = opts[:table]
-      @db    = opts[:db] || ActiveRecord::Base.connection
+      @db    = opts[:db] || ActiveRecord::Base.connection.raw_connection
     end
 
     def name
@@ -19,17 +19,17 @@ class Memcache
     end
 
     def get(key)
-      db.select_value %{
+      db.query %{
         SELECT value FROM #{table}
-         WHERE key = '#{key}' AND #{expiry_clause(Time.now)}
+         WHERE key = #{quote(key)} AND #{expiry_clause}
       }
     end
 
     def get_multi(keys)
-      keys = keys.collect {|key| "'#{key}'"}.join(',')
-      db.select_values %{
+      keys = keys.collect {|key| quote(key)}.join(',')
+      db.query %{
         SELECT value FROM #{table}
-         WHERE key IN (#{keys}) AND #{expiry_clause(Time.now)}
+         WHERE key IN (#{keys}) AND #{expiry_clause}
       }
     end
 
@@ -40,69 +40,66 @@ class Memcache
         return unless value =~ /^\d+$/
         
         value = value.to_i + amount
-        db.execute %{
-          UPDATE #{table} SET value = #{value}, updated_at = '#{Time.now.to_s(:db)}'
-           WHERE key = '#{key}'
+        db.query %{
+          UPDATE #{table} SET value = #{quote(value)}, updated_at = NOW()
+           WHERE key = #{quote(key)}
         }
       end
       value
     end
 
-    def delete(key, expiry = nil)
+    def delete(key, expiry = 0)
       if expiry
-        expires_at = Time.now + expiry
-        db.execute %{
-          UPDATE #{table} SET expires_at = '#{expires_at.to_s(:db)}'
-           WHERE key = #{key} AND #{expiry_clause(expires_at)}
+        db.query %{
+          UPDATE #{table} SET expires_at = NOW() + interval '#{expiry} seconds'
+           WHERE key = #{quote(key)} AND #{expiry_clause(expiry)}
         }
-
-        old_expiry = @expiry[key.to_s] || expiry
-        @expiry[key.to_s] = [old_expiry, expiry].min
       else
-        db.execute %{
+        db.query %{
           DELETE FROM #{table}
-           WHERE key = #{key}
+           WHERE key = #{quote(key)}
         }
       end
     end
 
-    def set(key, value, expiry = nil)
+    def set(key, value, expiry = 0)
       store(:set, key, value, expiry)
     end
 
-    def add(key, value, expiry = nil)
+    def add(key, value, expiry = 0)
       store(:add, key, value, expiry)
     end
 
   private
  
     def store(method, key, value, expiry)
-      expires_at = Time.now + expiry if expiry
       begin
-        sql = %{
+        db.exec %{
           INSERT INTO #{table} (key, value, updated_at, expires_at)
-            VALUES ('#{key}', '#{value}', ?, ?)
+            VALUES (#{quote(key)}, #{quote(value)}, NOW(), #{expiry_sql(expiry)})
         }
-        ActiveRecord::Base.send(:sanitize_sql, [sql, Time.now)
-
-        db.execute(sql)
       rescue ActiveRecord::StatementInvalid => e
         return nil if method == :add 
-        db.execute %{
+        db.exec %{
           UPDATE #{table}
-           SET value = '#{value}', updated_at = '#{Time.now.to_s(:db)}', expires_at = '#{expires_at.to_s(:db)}'
-           WHERE key = '#{key}'
+           SET value = #{quote(value)}, updated_at = NOW(), expires_at = #{expiry_sql(expiry)}
+           WHERE key = #{quote(key)}
         }
       end
       value
     end
-
-    def expiry_clause(expires_at)
-      "expires_at IS NULL OR expires_at > '#{expires_at.to_s(:db)}'"
+        
+    def quote(string)
+      string.to_s.gsub(/'/,"\'")
+      "'#{string}'"
     end
-    
-    def quote_key(key)
-      "'#{key}'"
+
+    def expiry_clause(expiry = 0)
+      "expires_at IS NULL OR expires_at > '#{expiry == 0 ? 'NOW()' : expiry_sql(expiry)}'"
+    end
+
+    def expiry_sql(expiry)
+      expiry == 0 ? 'NULL' : "NOW() + interval '#{expiry} seconds'"
     end
   end
 end
@@ -128,4 +125,3 @@ class MemcacheDBMigration < ActiveRecord::Migration
     drop_table table
   end
 end
-
