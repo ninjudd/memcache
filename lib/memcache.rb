@@ -819,6 +819,10 @@ class MemCache
     def []=(scope, cache)
       @cache_by_scope[scope.to_sym] = cache
     end
+
+    def reset
+      @cache_by_scope.values.each {|c| c.reset}
+    end
   end
   
   def self.pool
