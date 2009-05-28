@@ -67,6 +67,10 @@ class MemCacheMock
     @expiry.clear 
   end
   
+  def reset
+    # do nothing
+  end
+
   def get_multi(*keys)
     opts = keys.last.kind_of?(Hash) ? keys.pop : {}
     keys.flatten!
