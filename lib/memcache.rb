@@ -211,11 +211,7 @@ class MemCache
     with_server(key) do |server, cache_key|
       value = cache_get server, cache_key
       return nil if value.nil?
-      begin
-        value = Marshal.load(value) unless raw
-      rescue NotImplementedError => e
-        value = nil
-      end
+      value = Marshal.load(value) unless raw
       return value
     end
   rescue TypeError => err
