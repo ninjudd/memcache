@@ -603,17 +603,14 @@ class MemCache
       # We'll catch it in higher-level code and attempt to restart the operation.
       raise IndexError, "No connection to server (#{server.status})" if socket.nil?
 
-      # Clear out the read buffer in case we were interrupted before the read finished.
-      begin
-        loop { socket.read_nonblock(1500) }
-      rescue Errno::EAGAIN => e
-      end
-
       block.call(socket)
     rescue MemCacheError, SocketError, SystemCallError, IOError => err
       handle_error(server, err) if retried || socket.nil?
       retried = true
       retry
+    rescue Exception => err
+      server.close
+      raise err
     end
   ensure
     @mutex.unlock if @multithread
