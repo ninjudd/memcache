@@ -669,7 +669,7 @@ class MemCache
     # The amount of time to wait before attempting to re-establish a
     # connection with a server that is marked dead.
 
-    RETRY_DELAY = 30.0 unless defined? RETRY_DELAY
+    RETRY_DELAY = 1.0 unless defined? RETRY_DELAY
 
     ##
     # The host the memcached server is running on.
