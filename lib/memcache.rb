@@ -257,7 +257,6 @@ class MemCache
       keys = keys.join ' '
       values = cache_get_multi server, keys
       values.each do |key, value|
-        next if value.nil?
         results[cache_keys[key]] = opts[:raw] ? value : Marshal.load(value)
       end
     end
