@@ -5,25 +5,22 @@ require 'timeout'
 class Memcache
   class Server
     CONNECT_TIMEOUT = 1.0
-    RETRY_DELAY     = 10.0
+    RETRY_DELAY     = 5.0 # Only used for reads.
     DEFAULT_PORT    = 11211
 
-    attr_reader :host, :port, :status
-    attr_accessor :retry_at
-    
-    class MemcacheError   < StandardError; end
-    class ConnectionError < MemcacheError; end
-    class ServerError     < MemcacheError; end
-    class ClientError     < MemcacheError; end
-    class ServerDown      < MemcacheError; end
+    attr_reader :host, :port, :status, :retry_at
+    attr_writer :strict_reads
+
+    class MemcacheError < StandardError; end
+    class ServerError   < MemcacheError; end
+    class ClientError   < MemcacheError; end
 
     def initialize(opts)
-      @host   = opts[:host]
-      @port   = opts[:port]   || DEFAULT_PORT
-      @status = 'NOT CONNECTED'
-
-      @readonly    = opts[:readonly]
-      @multithread = opts[:multithread]      
+      @host         = opts[:host]
+      @port         = opts[:port] || DEFAULT_PORT
+      @readonly     = opts[:readonly]
+      @strict_reads = opts[:strict_reads]
+      @status       = 'NOT CONNECTED'
     end
 
     def inspect
@@ -35,38 +32,36 @@ class Memcache
     end
 
     def alive?
-      not socket.nil?
-    end
-
-    def retry?
       @retry_at.nil? or @retry_at < Time.now
-    end
-
-    def multithread?
-      @multithread
     end
 
     def readonly?
       @readonly
     end
 
-    def close
-      # Close the socket. The server is not considered dead.
-      mutex.lock if multithread?
+    def strict_reads?
+      @strict_reads
+    end
+
+    def close(error = nil)
+      # Close the socket. If there is an error, mark the server dead.
       @socket.close if @socket and not @socket.closed?
-      @socket   = nil
-      @retry_at = nil
-      @status   = "NOT CONNECTED"
-    ensure
-      mutex.unlock if multithread?
+      @socket = nil
+      
+      if error
+        @retry_at = Time.now + RETRY_DELAY
+        @status   = "DEAD: %s: %s, will retry at %s" % [error.class, error.message, @retry_at]
+      else
+        @retry_at = nil
+        @status   = "NOT CONNECTED"
+      end
     end
 
     def stats
-      next unless alive?
       stats = {}
-      send_command('stats') do |response|
+      read_command('stats') do |response|
         while response do
-          break if response == "END\r\n"
+          return stats if response == "END\r\n"
 
           key, value = match_response!(response, /^STAT ([\w]+) ([\w\.\:]+)/)
 
@@ -81,43 +76,52 @@ class Memcache
           response = socket.gets
         end
       end
-      stats
+      return {}
     end
 
     def flush_all(delay = nil)
-      send_command("flush_all #{delay}")
+      check_writable!
+      write_command("flush_all #{delay}")
     end
 
     alias clear flush_all
 
-    def get(key)
-      send_command("get #{key}") do |response|
-        return nil if response == "END\r\n"
-          
-        key, flags, length = match_response!(response, /^VALUE (.+) (.+) (.+)/)
+    def gets(keys)
+      return gets([keys])[keys.to_s] unless keys.kind_of?(Array)
 
-        value = socket.read(length.to_i)
-
-        match_response!(socket.read(2), "\r\n")
-        match_response!(socket.gets, "END\r\n")
-        return value
-      end
-    end
-
-    def get_multi(keys)
-      values = {}
-      send_command("get #{keys.join(' ')}") do |response|
+      result = {}
+      read_command("gets #{keys.join(' ')}") do |response|
         while response do
-          return values if response == "END\r\n"
+          return results if response == "END\r\n"
 
-          key, flags, length = match_response!(response, /^VALUE (.+) (.+) (.+)/)
-          values[key] = socket.read(length.to_i)
+          key, flags, length, cas = match_response!(response, /^VALUE (.+) (.+) (.+) (.+)/)
+          results[key] = [socket.read(length.to_i), cas]
 
           match_response!(socket.read(2), "\r\n")
           response = socket.gets
         end
         unexpected_eof!
       end
+      return {}
+    end
+
+    def get(keys)
+      return get([keys])[keys.to_s] unless keys.kind_of?(Array)
+
+      results = {}
+      read_command("get #{keys.join(' ')}") do |response|
+        while response do
+          return results if response == "END\r\n"
+
+          key, flags, length = match_response!(response, /^VALUE (.+) (.+) (.+)/)
+          results[key] = socket.read(length.to_i)
+
+          match_response!(socket.read(2), "\r\n")
+          response = socket.gets
+        end
+        unexpected_eof!
+      end
+      return {}
     end
 
     def incr(key, amount = 1)
@@ -129,14 +133,14 @@ class Memcache
         method = 'incr'
       end
 
-      response = send_command("#{method} #{key} #{amount}")
+      response = write_command("#{method} #{key} #{amount}")
       return nil if response == "NOT_FOUND\r\n"
       return response.to_i
     end
 
     def delete(key, expiry = 0)
       check_writable!
-      send_command("delete #{key} #{expiry}") == "DELETED\r\n"
+      write_command("delete #{key} #{expiry}") == "DELETED\r\n"
     end
 
     def set(key, value, expiry = 0)
@@ -157,7 +161,7 @@ class Memcache
 
     def store(method, key, value, expiry)
       check_writable!
-      send_command ["#{method} #{key} 0 #{expiry} #{value.to_s.size}", value]
+      write_command ["#{method} #{key} 0 #{expiry} #{value.to_s.size}", value]
     end
 
     def check_writable!
@@ -174,84 +178,62 @@ class Memcache
     end
 
     def send_command(command)
+      command = command.join("\r\n") if command.kind_of?(Array)
+      socket.write("#{command}\r\n")
+      response = socket.gets
+      
+      unexpected_eof! if response.nil?
+      if response =~ /^(ERROR|CLIENT_ERROR|SERVER_ERROR) (.*)\r\n/
+        raise ($1 == 'SERVER_ERROR' ? ServerError : ClientError), $2
+      end
+      
+      block_given? ? yield(response) : response
+    end
+
+    def write_command(command, &block)
       retried = false
       begin
-        mutex.lock if multithread?
-        command = command.join("\r\n") if command.kind_of?(Array)
-        socket.write("#{command}\r\n")
-        response = socket.gets
-        
-        unexpected_eof! if response.nil?
-        if response =~ /^(ERROR|CLIENT_ERROR|SERVER_ERROR) (.*)\r\n/
-          raise ($1 == 'SERVER_ERROR' ? ServerError : ClientError), $2
-        end
-
-        block_given? ? yield(response) : response
-
-      rescue ClientError, ServerError, SocketError, SystemCallError, IOError => error
-        if not retried
+        send_command(command, &block)
+      rescue Exception => e
+        puts "Memcache write error: #{e.class}: #{e.to_s}"
+        unless retried
           # Close the socket and retry once.
-          close
           retried = true
+          close
           retry
-        else
-          # Mark the server dead and raise an error.
-          kill(error.message)
-
-          # Reraise the error if it is a MemcacheError
-          raise error if error.kind_of?(MemcacheError)
-
-          # Reraise as a ConnectionError
-          new_error = ConnectionError.new("#{error.class}: #{error.message}")
-          new_error.set_backtrace(error.backtrace)
-          raise new_error
         end
-      ensure
-        mutex.unlock if multithread?
+        close(e) # Mark dead.
+        raise(e)
       end
     end
 
-    def socket
-      return @socket if @socket and not @socket.closed?
-      raise ServerDown, "will retry at #{retry_at}" unless retry?
+    def read_command(command, &block)
+      raise MemcacheError, "Server dead, will retry at #{retry_at}" unless alive?
+      send_command(command, &block)
+    rescue Exception => e
+      puts "Memcache read error: #{e.class}: #{e.to_s}"
+      close(e) # Mark dead.
+      raise(e) if strict_reads?
+    end
 
-      begin
+    def socket
+      if @socket.nil? or @socket.closed?
         # Attempt to connect.
-        mutex.lock if multithread?
         @socket = timeout(CONNECT_TIMEOUT) do
           TCPSocket.new(host, port)
         end
-
         if Socket.constants.include? 'TCP_NODELAY'
           @socket.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
         end
+        
         @retry_at = nil
         @status   = 'CONNECTED'
-      rescue SocketError, SystemCallError, IOError, Timeout::Error => e
-        # Connection failed.
-        kill(e.message)
-        raise ServerDown, e.message
-      ensure
-        mutex.unlock if multithread?
       end
-
       @socket
     end
 
     def unexpected_eof!
-      raise ConnectionError, 'unexpected end of file' 
-    end
-
-    def kill(reason = 'Unknown error')
-      # Mark the server as dead and close its socket.
-      @socket.close if @socket and not @socket.closed?
-      @socket   = nil
-      @retry_at = Time.now + RETRY_DELAY  
-      @status   = "DEAD: %s, will retry at %s" % [reason, @retry_at]
-    end
-
-    def mutex
-      @mutex ||= Mutex.new
+      raise MemcacheError, 'unexpected end of file' 
     end
   end
 end

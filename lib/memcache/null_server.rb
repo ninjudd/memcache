@@ -7,27 +7,23 @@ class Memcache
     def flush_all(delay = nil)
     end
 
-    def get(key)
+    def get(keys)
+      keys.kind_of?(Array) ? {} : nil
+    end
+
+    def incr(key, amount = nil)
       nil
     end
 
-    def get_multi(keys)
-      {}
-    end
-
-    def incr(key, amount)
+    def delete(key, expiry = nil)
       nil
     end
 
-    def delete(key, expiry)
+    def set(key, value, expiry = nil)
       nil
     end
 
-    def set(key, value, expiry)
-      nil
-    end
-
-    def add(key, value, expiry)
+    def add(key, value, expiry = nil)
       nil
     end
   end

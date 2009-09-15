@@ -12,6 +12,8 @@ class MemcacheDBServerTest < Test::Unit::TestCase
     :password => "",
     :database => "memcache_test"
   )
+  ActiveRecord::Migration.verbose = false
+  ActiveRecord::Base.connection.client_min_messages = 'panic'
 
   include MemcacheServerTestHelper
 

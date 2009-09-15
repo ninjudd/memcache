@@ -15,23 +15,23 @@ class Memcache
       @expiry.clear
     end
 
-    def get(key)
-      key = key.to_s
-
-      if @expiry[key] and Time.now > @expiry[key]
-        @data[key]   = nil
-        @expiry[key] = nil
+    def get(keys)
+      if keys.kind_of?(Array)
+        hash = {}
+        keys.each do |key|
+          key = key.to_s
+          val = get(key)
+          hash[key] = val if val
+        end
+        hash
+      else
+        key = keys.to_s
+        if @expiry[key] and Time.now > @expiry[key]
+          @data[key]   = nil
+          @expiry[key] = nil
+        end
+        @data[key]
       end
-      @data[key]
-    end
-
-    def get_multi(keys)
-      hash = {}
-      keys.each do |key|
-        val = get(key)
-        hash[key.to_s] = val if val
-      end
-      hash
     end
 
     def incr(key, amount = 1)
@@ -41,6 +41,7 @@ class Memcache
       return unless value =~ /^\d+$/
 
       value = value.to_i + amount
+      value = 0 if value < 0
       @data[key] = value.to_s
       value
     end

@@ -14,24 +14,39 @@ class Memcache
     @readonly          = opts[:readonly]
     @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
     @default_namespace = opts[:namespace]
+    
+    @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
+      case server
+      when Hash
+        server = Server.new(server)
+      when String
+        host, port = server.split(':')
+        server = Server.new(:host => host, :port => port)
+      when Class
+        server = server.new
+      end
+      server.strict_reads = true if opts[:strict_reads] and server.respond_to?(:strict_reads=)
+      server
+    end
+  end
 
-    @servers = opts[:servers].collect {|s| s.kind_of?(Hash) ? Server.new(s) : s}
+  def fail_on_read_error?
+    @fail_on_read_error
   end
 
   def inspect
-    "<Memcache: %d servers, ns: %p, ro: %p>" %
-      [@servers.length, namespace, @readonly]
+    "<Memcache: %d servers, ns: %p, ro: %p>" % [@servers.length, namespace, @readonly]
   end
 
   def namespace
-    Thread.current[:memcache_namespace] || default_namespace
+    @namespace || default_namespace
   end
 
   def namespace=(namespace)
     if default_namespace == namespace
-      Thread.current[:memcache_namespace] = nil
+      @namespace = nil
     else
-      Thread.current[:memcache_namespace] = namespace
+      @namespace = namespace
     end
   end
 
@@ -49,6 +64,7 @@ class Memcache
   def get(key, opts = {})
     key   = cache_key(key)
     value = server(key).get(key)
+    return unless value
     opts[:raw] ? value : Marshal.load(value)
   end
 
@@ -78,9 +94,17 @@ class Memcache
     results
   end
 
+  def count(key)
+    key = cache_key(key)
+    server(key).get(key).to_i
+  end
+
   def incr(key, amount = 1)
     key = cache_key(key)
-    server(key).incr(key, amount)
+    server(key).incr(key, amount) || begin
+      server(key).add(key, '0')
+      server(key).incr(key, amount)
+    end
   end
 
   def decr(key, amount = 1)
@@ -108,8 +132,7 @@ class Memcache
 
   def get_some(keys, opts = {})
     expiry = opts[:expiry] || default_expiry
-
-    keys = keys.collect {|key| key.to_s}
+    keys   = keys.collect {|key| key.to_s}
 
     records = {}
     records = self.get_multi(keys) unless opts[:disable]
@@ -136,9 +159,8 @@ class Memcache
     result
   end
 
-
   def delete(key, opts = {})
-    key    = cache_key(key)
+    key = cache_key(key)
     server(key).delete(key, opts[:delay])
   end
 
@@ -153,9 +175,7 @@ class Memcache
   end
 
   def reset
-    servers.each do |server|
-      server.close
-    end
+    servers.each {|server| server.close}
   end
 
   def stats
@@ -170,7 +190,7 @@ class Memcache
   alias [] get
 
   def []=(key, value)
-    set key, value
+    set(key, value)
   end
 
 protected
@@ -196,7 +216,8 @@ protected
     attr_reader :fallback
 
     def initialize
-      @cache_by_scope = { :default => MemCacheMock.new }
+      @cache_by_scope = {}
+      @cache_by_scope[:default] = Memcache.new(:server => Memcache::LocalServer)
       @fallback = :default
     end
     

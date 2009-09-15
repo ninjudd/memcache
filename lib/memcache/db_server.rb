@@ -15,36 +15,37 @@ class Memcache
     end
 
     def flush_all(delay = nil)
-      db.execute("DELETE FROM #{table}")
+      db.query("TRUNCATE #{table}")
     end
 
-    def get(key)
-      db.query %{
-        SELECT value FROM #{table}
-         WHERE key = #{quote(key)} AND #{expiry_clause}
-      }
-    end
+    def get(keys)
+      return get([keys])[keys.to_s] unless keys.kind_of?(Array)
 
-    def get_multi(keys)
-      keys = keys.collect {|key| quote(key)}.join(',')
-      db.query %{
-        SELECT value FROM #{table}
+      keys = keys.collect {|key| quote(key.to_s)}.join(',')
+      sql = %{
+        SELECT key, value FROM #{table}
          WHERE key IN (#{keys}) AND #{expiry_clause}
       }
+      results = {}
+      db.query(sql).each do |key, value|
+        results[key] = value
+      end
+      results
     end
 
     def incr(key, amount = 1)
-      db.transaction do
-        value = get(key)
-        return unless value        
-        return unless value =~ /^\d+$/
-        
-        value = value.to_i + amount
-        db.query %{
-          UPDATE #{table} SET value = #{quote(value)}, updated_at = NOW()
-           WHERE key = #{quote(key)}
-        }
-      end
+      db.query('BEGIN')
+      value = get(key)
+      return unless value        
+      return unless value =~ /^\d+$/
+      
+      value = value.to_i + amount
+      value = 0 if value < 0
+      db.query %{
+        UPDATE #{table} SET value = #{quote(value)}, updated_at = NOW()
+         WHERE key = #{quote(key)}
+      }
+      db.query('COMMIT')
       value
     end
 
