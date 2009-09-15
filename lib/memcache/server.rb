@@ -60,23 +60,17 @@ class Memcache
     def stats
       stats = {}
       read_command('stats') do |response|
-        while response do
-          return stats if response == "END\r\n"
+        key, value = match_response!(response, /^STAT ([\w]+) ([\w\.\:]+)/)
 
-          key, value = match_response!(response, /^STAT ([\w]+) ([\w\.\:]+)/)
-
-          if ['rusage_user', 'rusage_system'].include?(key)
-            seconds, microseconds = value.split(/:/, 2)
-            microseconds ||= 0
-            stats[key] = Float(seconds) + (Float(microseconds) / 1_000_000)
-          else
-            stats[key] = (value =~ /^\d+$/ ? value.to_i : value)
-          end
-
-          response = socket.gets
+        if ['rusage_user', 'rusage_system'].include?(key)
+          seconds, microseconds = value.split(/:/, 2)
+          microseconds ||= 0
+          stats[key] = Float(seconds) + (Float(microseconds) / 1_000_000)
+        else
+          stats[key] = (value =~ /^\d+$/ ? value.to_i : value)
         end
       end
-      return {}
+      stats
     end
 
     def flush_all(delay = nil)
@@ -89,20 +83,12 @@ class Memcache
     def gets(keys)
       return gets([keys])[keys.to_s] unless keys.kind_of?(Array)
 
-      result = {}
+      results = {}
       read_command("gets #{keys.join(' ')}") do |response|
-        while response do
-          return results if response == "END\r\n"
-
-          key, flags, length, cas = match_response!(response, /^VALUE (.+) (.+) (.+) (.+)/)
-          results[key] = [socket.read(length.to_i), cas]
-
-          match_response!(socket.read(2), "\r\n")
-          response = socket.gets
-        end
-        unexpected_eof!
+        key, flags, length, cas_unique = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)/)
+        results[key] = [socket.read(length.to_i), cas_unique]
       end
-      return {}
+      results
     end
 
     def get(keys)
@@ -110,32 +96,24 @@ class Memcache
 
       results = {}
       read_command("get #{keys.join(' ')}") do |response|
-        while response do
-          return results if response == "END\r\n"
-
-          key, flags, length = match_response!(response, /^VALUE (.+) (.+) (.+)/)
-          results[key] = socket.read(length.to_i)
-
-          match_response!(socket.read(2), "\r\n")
-          response = socket.gets
-        end
-        unexpected_eof!
+        key, flags, length = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+)/)
+        results[key] = socket.read(length.to_i)
       end
-      return {}
+      results
     end
 
     def incr(key, amount = 1)
       check_writable!
-      if amount < 0
-        method = 'decr'
-        amount = amount.abs
-      else
-        method = 'incr'
-      end
+      raise MemcacheError, "incr requires unsigned value" if amount < 0
+      response = write_command("incr #{key} #{amount}")
+      response == "NOT_FOUND\r\n" ? nil : response.to_i
+    end
 
-      response = write_command("#{method} #{key} #{amount}")
-      return nil if response == "NOT_FOUND\r\n"
-      return response.to_i
+    def decr(key, amount = 1)
+      check_writable!
+      raise MemcacheError, "decr requires unsigned value" if amount < 0
+      response = write_command("decr #{key} #{amount}")
+      response == "NOT_FOUND\r\n" ? nil : response.to_i
     end
 
     def delete(key, expiry = 0)
@@ -144,25 +122,44 @@ class Memcache
     end
 
     def set(key, value, expiry = 0)
-      if value
-        store(:set, key, value, expiry)
-        value
-      else
-        delete(key)
-      end
+      return delete(key) if value.nil?
+
+      check_writable!
+      write_command("set #{key} 0 #{expiry} #{value.to_s.size}", value)
+      value
+    end
+
+    def cas(key, value, cas_unique, expiry = 0)
+      check_writable!
+      response = write_command("cas #{key} 0 #{expiry} #{value.to_s.size} #{cas_unique}", value)
+      response == "STORED\r\n" ? value : nil
     end
 
     def add(key, value, expiry = 0)
-      response = store(:add, key, value, expiry)
+      check_writable!
+      response = write_command("add #{key} 0 #{expiry} #{value.to_s.size}", value)
+      response == "STORED\r\n" ? value : nil
+    end
+
+    def replace(key, value, expiry = 0)
+      check_writable!
+      response = write_command("replace #{key} 0 #{expiry} #{value.to_s.size}", value)
+      response == "STORED\r\n" ? value : nil
+    end
+
+    def append(key, value)
+      check_writable!
+      response = write_command("append #{key} 0 0 #{value.to_s.size}", value)
+      response == "STORED\r\n" ? value : nil
+    end
+
+    def prepend(key, value)
+      check_writable!
+      response = write_command("prepend #{key} 0 0 #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 
   private
-
-    def store(method, key, value, expiry)
-      check_writable!
-      write_command ["#{method} #{key} 0 #{expiry} #{value.to_s.size}", value]
-    end
 
     def check_writable!
       raise MemcacheError, "Update of readonly cache" if readonly?
@@ -177,7 +174,7 @@ class Memcache
       match.to_a[1, match.size]
     end
 
-    def send_command(command)
+    def send_command(*command)
       command = command.join("\r\n") if command.kind_of?(Array)
       socket.write("#{command}\r\n")
       response = socket.gets
@@ -190,10 +187,10 @@ class Memcache
       block_given? ? yield(response) : response
     end
 
-    def write_command(command, &block)
+    def write_command(*command, &block)
       retried = false
       begin
-        send_command(command, &block)
+        send_command(*command, &block)
       rescue Exception => e
         puts "Memcache write error: #{e.class}: #{e.to_s}"
         unless retried
@@ -209,7 +206,15 @@ class Memcache
 
     def read_command(command, &block)
       raise MemcacheError, "Server dead, will retry at #{retry_at}" unless alive?
-      send_command(command, &block)
+      send_command(command) do |response|
+        while response do
+          return if response == "END\r\n"
+          yield(response)
+          match_response!(socket.read(2), "\r\n")
+          response = socket.gets
+        end
+        unexpected_eof!
+      end
     rescue Exception => e
       puts "Memcache read error: #{e.class}: #{e.to_s}"
       close(e) # Mark dead.

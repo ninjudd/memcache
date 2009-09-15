@@ -12,12 +12,36 @@ module MemcacheServerTestHelper
     assert_equal 'foo', m.get('2')
   end
 
+  def test_add_and_replace
+    # Replace should do nothing if key doesn't exist.
+    m.replace('foo', 'bar')
+    assert_equal nil, m.get('foo')
+
+    # Add should only work if key doesn't exist.
+    m.add('foo', 'foo')
+    assert_equal 'foo', m.get('foo')
+    assert_equal nil,   m.add('foo', 'bar')
+    assert_equal 'foo', m.get('foo')
+    
+    # Replace should only work if key doesn't exist.
+    m.replace('foo', 'bar')
+    assert_equal 'bar', m.get('foo')
+  end
+
+  def test_append_and_prepend
+    m.set('foo', 'foo')
+    m.append('foo', 'bar')
+    assert_equal 'foobar', m.get('foo')
+    m.prepend('foo', 'baz')
+    assert_equal 'bazfoobar', m.get('foo')
+  end
+
   def test_incr
     # incr does nothing if value doesn't exist
     m.incr('foo')
     assert_equal nil, m.get('foo')
 
-    m.incr('foo', -1)
+    m.decr('foo', 1)
     assert_equal nil, m.get('foo')
 
     m.set('foo', '0')
@@ -27,11 +51,11 @@ module MemcacheServerTestHelper
     m.incr('foo', 52)
     assert_equal '53', m.get('foo')
 
-    m.incr('foo', -43)
+    m.decr('foo', 43)
     assert_equal '10', m.get('foo')
 
     # Cannot go below zero.
-    m.incr('foo', -100)
+    m.decr('foo', 100)
     assert_equal '0', m.get('foo').strip
   end
 
