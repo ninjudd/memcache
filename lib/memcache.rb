@@ -86,7 +86,7 @@ class Memcache
     # Fetch and combine the results. Also, map the cache keys back to the input keys.
     results = {}
     keys_by_server.each do |server, keys|
-      server.get_multi(keys).each do |key, value|
+      server.get(keys).each do |key, value|
         input_key = key_to_input_key[key]
         results[input_key] = opts[:raw] ? value : Marshal.load(value)
       end
@@ -241,4 +241,9 @@ protected
   def self.pool
     @@cache_pool ||= Pool.new
   end
+end
+
+# Add flags and cas_unique
+class String
+  attr_accessor :memcache_flags, :memcache_cas_unique
 end

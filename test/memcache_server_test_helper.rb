@@ -10,6 +10,11 @@ module MemcacheServerTestHelper
     
     assert_equal 'foo', m.get('2')
     assert_equal 'foo', m.get('2')
+
+    m.set(2, 'bar', 0)
+    
+    assert_equal 'bar', m.get('2')
+    assert_equal 'bar', m.get('2')
   end
 
   def test_add_and_replace
@@ -92,5 +97,44 @@ module MemcacheServerTestHelper
     assert_equal '1', m.get('test')
     sleep(2)
     assert_equal nil, m.get('test')    
+  end
+
+  module AdvancedMethods
+    def test_flags
+      m.set('thom', 'hartmann', 0)
+      value = m.gets('thom')
+      assert_equal 0, value.memcache_flags
+      
+      m.set('thom', 'hartmann', 0, 0b11110001)
+      value = m.gets('thom')
+      assert_equal 0b11110001, value.memcache_flags
+      
+      value = m.get('thom')
+      assert_equal 0b11110001, value.memcache_flags
+      
+      m.set('thom', 'hartmann', 0, 0b10101010)
+      value = m.get('thom')
+      assert_equal 0b10101010, value.memcache_flags
+    end
+    
+    def test_gets_and_cas
+      m.set('thom', 'hartmann')
+      
+      value = m.gets('thom')    
+      assert_equal 'hartmann', value
+      m.cas('thom', 'thompson', value.memcache_cas_unique)
+      assert_equal 'thompson', m.get('thom')
+      
+      value = m.gets('thom')
+      m.delete('thom')
+      assert_nil m.cas('thom', 'hartson', value.memcache_cas_unique)
+      assert_equal nil, m.get('thom')
+      
+      m.add('thom', 'hartmann')
+      value = m.gets('thom')
+      m.set('thom', 'foo')
+      assert_nil m.cas('thom', 'hartson', value.memcache_cas_unique)
+      assert_equal 'foo', m.get('thom')
+    end
   end
 end

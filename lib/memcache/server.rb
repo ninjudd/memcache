@@ -4,9 +4,9 @@ require 'timeout'
 
 class Memcache
   class Server
-    CONNECT_TIMEOUT = 1.0
-    RETRY_DELAY     = 5.0 # Only used for reads.
-    DEFAULT_PORT    = 11211
+    CONNECT_TIMEOUT  = 1.0
+    READ_RETRY_DELAY = 5.0
+    DEFAULT_PORT     = 11211
 
     attr_reader :host, :port, :status, :retry_at
     attr_writer :strict_reads
@@ -49,7 +49,7 @@ class Memcache
       @socket = nil
       
       if error
-        @retry_at = Time.now + RETRY_DELAY
+        @retry_at = Time.now + READ_RETRY_DELAY
         @status   = "DEAD: %s: %s, will retry at %s" % [error.class, error.message, @retry_at]
       else
         @retry_at = nil
@@ -81,23 +81,27 @@ class Memcache
     alias clear flush_all
 
     def gets(keys)
-      return gets([keys])[keys.to_s] unless keys.kind_of?(Array)
-
-      results = {}
-      read_command("gets #{keys.join(' ')}") do |response|
-        key, flags, length, cas_unique = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)/)
-        results[key] = [socket.read(length.to_i), cas_unique]
-      end
-      results
+      get(keys, :cas => true)
     end
 
-    def get(keys)
-      return get([keys])[keys.to_s] unless keys.kind_of?(Array)
+    def get(keys, opts = {})
+      return get([keys], opts)[keys.to_s] unless keys.kind_of?(Array)
+      return {} if keys.empty?
+
+      method = opts[:cas] ? 'gets' : 'get'
 
       results = {}
-      read_command("get #{keys.join(' ')}") do |response|
-        key, flags, length = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+)/)
-        results[key] = socket.read(length.to_i)
+      read_command("#{method} #{keys.join(' ')}") do |response|
+        if opts[:cas] 
+          key, flags, length, cas_unique = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)/)
+        else
+          key, flags, length = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+)/)
+        end
+          
+        value = socket.read(length.to_i)
+        value.memcache_flags = flags.to_i
+        value.memcache_cas_unique = cas_unique
+        results[key] = value
       end
       results
     end
@@ -121,29 +125,28 @@ class Memcache
       write_command("delete #{key} #{expiry}") == "DELETED\r\n"
     end
 
-    def set(key, value, expiry = 0)
+    def set(key, value, expiry = 0, flags = 0)
       return delete(key) if value.nil?
-
       check_writable!
-      write_command("set #{key} 0 #{expiry} #{value.to_s.size}", value)
+      write_command("set #{key} #{flags} #{expiry} #{value.to_s.size}", value)
       value
     end
 
-    def cas(key, value, cas_unique, expiry = 0)
+    def cas(key, value, cas_unique, expiry = 0, flags = 0)
       check_writable!
-      response = write_command("cas #{key} 0 #{expiry} #{value.to_s.size} #{cas_unique}", value)
+      response = write_command("cas #{key} #{flags} #{expiry} #{value.to_s.size} #{cas_unique.to_i}", value)
       response == "STORED\r\n" ? value : nil
     end
 
-    def add(key, value, expiry = 0)
+    def add(key, value, expiry = 0, flags = 0)
       check_writable!
-      response = write_command("add #{key} 0 #{expiry} #{value.to_s.size}", value)
+      response = write_command("add #{key} #{flags} #{expiry} #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 
-    def replace(key, value, expiry = 0)
+    def replace(key, value, expiry = 0, flags = 0)
       check_writable!
-      response = write_command("replace #{key} 0 #{expiry} #{value.to_s.size}", value)
+      response = write_command("replace #{key} #{flags} #{expiry} #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 

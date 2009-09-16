@@ -22,3 +22,17 @@ class Test::Unit::TestCase
     end
   end
 end
+
+class Module
+  def const_override(const, value)
+    old_value = const_get(const)
+    old_verbose, $VERBOSE = $VERBOSE, nil
+    begin
+      const_set(const, value)
+      yield
+    ensure
+      const_set(const, old_value)
+      $VERBOSE = old_verbose
+    end
+  end
+end
