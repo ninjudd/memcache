@@ -1,0 +1,161 @@
+= memcache
+
+This is the Geni memcached client. It started out as a fork of fiveruns/memcache-client,
+which was a fork of seattle.rb's memcache-client, but over time, our client has diverged,
+and I've rewritten most of the code. Of course, a lot of credit is due to those whose code
+served as a starting point for this code.
+
+== Usage
+
+ cache = Memcache.new(:server => "localhost:11211")
+ cache.set('stuff', [:symbol, 'String', 1, {:bar => 5}])
+ cache.get('stuff')
+ => [:symbol, "String", 1, {:bar => 5}]
+
+== How is this different from memcache-client?
+
+Like memcache-client, _memcache_ (shown in italics when I am referring to this
+library) is a memcached client, but it differs significantly from memcache-client in
+several important ways. First, I have renamed the main class from MemCache to Memcache to
+prevent confusion and to force those switching to _memcache_ to update their code.
+
+=== Interface
+
+I tried to keep the basic interface as similar as I could to memcache-client. In some
+cases, _memcache_ can be a drop-in replacement for memcache-client. There are some important
+differences though.
+
+- +expiry+ and +raw+ are specified as options in a hash now, instead of as unnamed parameters.
+
+   cache.set('foo', :a,  :expiry => 10.minutes)
+   cache.set('bar', :b,  :expiry => Time.parse('5:51pm Nov 24, 2018'))
+   cache.set('baz', 'c', :expiry => 30.minutes, :raw => true)
+
+- +get_multi+ has been replaced by a more versatile +get+ interface. If the first argument is
+  an array, then a hash of key/value pairs is returned. If the first argument is not an
+  array, then the value alone is returned.
+
+   cache.get('foo')          # => :a
+   cache.get(['foo', 'bar']) # => {"foo"=>:a, "bar"=>:b}
+   cache.get(['foo'])        # => {"foo"=>:a}
+
+- +get+ also supports updating the expiry for a single key. this can be used to keep
+  frequently accessed data in cache longer than less accessed data, though usually the
+  memcached LRU algorithm will be sufficient.
+
+   cache.get('foo', :expiry => 1.day)
+
+- Support for flags has been added to all 
+
+- +incr+ and +decr+ automatically initialize the value to 0 if the key doesn't
+  exist. The +count+ method returns the integer count associated with a given key.
+
+   cache.count('hits')    # => 0
+   cache.incr('hits', 52) # => 52
+   cache.decr('hits', 9)  # => 43
+   cache.count('hits')    # => 43
+
+- In addition to +add+, which was already supported, support has been added for +replace+,
+  +append+ and +prepend+ from the memcached protocol.
+
+   cache.add('foo', 1)
+   cache.add('foo', 0)
+   cache.get('foo')
+   => 1
+  
+   cache.replace('foo', 2) 
+   cache.get('foo')
+   => 2
+
+   cache.write('foo', 'bar')     ## shortcut for cache.set('foo', 'bar', :raw => true)
+   cache.append('foo', 'none')   ## append and prepend only works on raw values
+   cache.prepend('foo', 'foo')   ##
+   cache.read('foo')             ## shortcut for cache.get('foo', :raw => true)
+   => "foobarnone"
+
+- Support has also been added for +cas+ (compare-and-set).
+
+   value = cache.get('foo', :cas => true)
+   cache.cas('foo', value.upcase, :cas => value.memcache_cas)
+   cache.get('foo')
+   => "FOOBARNONE"
+
+   value = cache.get('foo', :cas => true)
+   cache.set('foo', 'modified')
+   cache.cas('foo', value.downcase, :cas => value.memcache_cas)
+   cache.get('foo')
+   => "modified"
+
+- Several additional convenience methods have been added including +get_or_add+,
+  +get_or_set+, +update+, +get_some+, +lock+, +unlock+, and +with_lock+.
+
+=== Implementation
+
+The underlying architechture of _memcache_ is more modular than memcache-client.
+A given +Memcache+ instance has a group of servers, just like before, but much more of the
+functionality in encapsulated inside the <tt>Memcache::Server</tt> object. Really, a +Server+
+object is a thin wrapper around an remote memcached server that takes care of the socket
+and protocol details along with basic error handling. The +Memcache+ class handles the
+partitioning algorithm, marshaling of ruby objects and various higher-level methods.
+
+By encapsulating the protocol inside the +Server+ object, it becomes very easy to plug-in
+alternate server implementations. Right now, there are two basic, alternate servers:
+
+[+LocalServer+] This is an in-process server for storing keys and values in local
+                memory. It is good for testing, when you don't want to spin up an instance
+                of memcached, and also as a second level of caching. For example, in a web
+                application, you can use this as a quick cache which lasts for the
+                duration of a request.
+
+[+PGServer+] This is an implementation of memcached functionality using SQL. It stores all
+             data in a single postgres table and uses +PGConn+ to select and update this
+             table. This works well as a permanent cache or in the case when your objects
+             are very large. It can also be used in a multi-level cache setup with
+             <tt>Memcache::Server</tt> to provide persistence without sacrificing speed.
+
+=== Very Large Values
+
+Memcached limits the size of values to 1MB. This is done to reduce memory usage, but it
+means that large data structures, which are also often costly to compute, cannot be stored
+easily. We solve this problem by providing an additional server called
+<tt>Memcache::SegmentedServer</tt>. It inherits from <tt>Memcache::Server</tt>, but
+includes code to segment and reassemble large values. Mike Stangel at Geni originally
+wrote this code as an extension to memcache-client and I adapted it for the new
+architecture.
+
+You can use segmented values either by passing +SegmentedServer+ objects to +Memcache+, or
+you can use the +segment_large_values+ option.
+
+ server = Memcache::SegmentedServer.new(:host => 'localhost', :port => 11211)
+ cache = Memcache.new(:server => server)
+
+ cache = Memcache.new(:server => 'localhost:11211', :segment_large_values => true)
+
+=== Error Handling and Recovery
+
+We handle errors differently in _memcache_ than memcache-client does. Whenever there is a
+connection error or other fatal error, memcache-client marks the offending server as dead
+for 30 seconds, and all calls that require that server fail for the next 30 seconds. This
+was unacceptable for us in a production environment. We tried changing the retry timeout
+to 1 second, but still found our exception logs filling up with failed web requests
+whenever a network connection was broken.
+
+So, the default behavior in _memcache_ is for reads to be stable even if the underlying
+server is unavailable. This means, that instead of raising an exception, a read will just
+return nil if the server is down. Of course, you need to monitor your memcached servers to
+make sure they aren't down for long, but this allows your site to be resilient to minor
+network blips. Any error that occurs while unmarshalling a stored object will also return nil.
+
+Writes, on the other hand, cannot just be ignored when the server is down. For this reason,
+every write operation is retried once by closing and reopening the connection before
+finally marking a server as dead and raising an exception. We will not attempt to read
+from a dead server for 5 seconds, but a write will always attempt to revive a dead server
+by attempting to connect.
+
+== Installation
+
+  $ sudo gem install ninjudd-memcache-client --source http://gems.github.com
+
+== License:
+
+Copyright (c) 2009 Justin Balthrop, Geni.com; Published under The MIT License, see LICENSE

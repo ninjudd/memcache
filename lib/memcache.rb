@@ -7,22 +7,36 @@ require 'rubygems'
 require File.dirname(__FILE__) + '/memcache_mock'
 require 'zlib'
 
+<<<<<<< HEAD
 ##
 # A Ruby client library for memcached.
 #
 # This is intended to provide access to basic memcached functionality.  It
 # does not attempt to be complete implementation of the entire API, but it is
 # approaching a complete implementation.
+=======
+$:.unshift(File.dirname(__FILE__))
+require 'memcache/server'
+require 'memcache/local_server'
+require 'memcache/segmented_server'
+>>>>>>> refactor
 
 class MemCache
   ##
   # The version of MemCache you are using.
 
+<<<<<<< HEAD
   VERSION = '1.5.0.3' unless defined? VERSION
+=======
+  DEFAULT_EXPIRY  = 0
+  LOCK_TIMEOUT    = 5
+  WRITE_LOCK_WAIT = 0.001
+>>>>>>> refactor
 
   ##
   # Default options for the cache object.
 
+<<<<<<< HEAD
   DEFAULT_OPTIONS = {
     :namespace   => nil,
     :readonly    => false,
@@ -116,23 +130,57 @@ class MemCache
     @mutex          = Mutex.new if @multithread
     @buckets        = []
     self.servers    = servers
+=======
+  def initialize(opts)
+    @readonly          = opts[:readonly]
+    @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
+    @default_namespace = opts[:namespace]
+    default_server = opts[:segment_large_values] ? SegmentedServer : Server
+
+    @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
+      case server
+      when Hash
+        server = default_server.new(server)
+      when String
+        host, port = server.split(':')
+        server = default_server.new(:host => host, :port => port)
+      when Class
+        server = server.new
+      end
+      server.strict_reads = true if opts[:strict_reads] and server.respond_to?(:strict_reads=)
+      server
+    end
+  end
+
+  def inspect
+    "<Memcache: %d servers, ns: %p, ro: %p>" % [@servers.length, namespace, @readonly]
+>>>>>>> refactor
   end
 
   ##
   # Returns the namespace for the current thread.
 
   def namespace
+<<<<<<< HEAD
     Thread.current[:memcache_namespace] || @namespace
+=======
+    @namespace || default_namespace
+>>>>>>> refactor
   end
 
   ##
   # Set the namespace for the current thread.
   
   def namespace=(namespace)
+<<<<<<< HEAD
     if namespace == @namespace
       Thread.current[:memcache_namespace] = nil
+=======
+    if default_namespace == namespace
+      @namespace = nil
+>>>>>>> refactor
     else
-      Thread.current[:memcache_namespace] = namespace
+      @namespace = namespace
     end
   end
 
@@ -144,6 +192,7 @@ class MemCache
       [@servers.length, @buckets.length, namespace, @readonly]
   end
 
+<<<<<<< HEAD
   ##
   # Returns whether there is at least one active server for the object.
 
@@ -179,8 +228,25 @@ class MemCache
         server
       else
         raise TypeError, "cannot convert #{server.class} into MemCache::Server"
+=======
+  def get(keys, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
+    if keys.kind_of?(Array)
+      multi_get(keys, opts)
+    else
+      key = cache_key(keys)
+
+      if opts[:expiry]
+        value = server(key).gets(key)
+        server(key).cas(key, value, value.memcache_cas, opts[:expiry]) if value
+      else
+        value = server(key).get(key, opts[:cas])
+>>>>>>> refactor
       end
+      unmarshal(value, opts)
     end
+<<<<<<< HEAD
 
     # Create an array of server buckets for weight selection of servers.
     @buckets = []
@@ -258,6 +324,132 @@ class MemCache
       values = cache_get_multi server, keys
       values.each do |key, value|
         results[cache_keys[key]] = opts[:raw] ? value : Marshal.load(value)
+=======
+  end
+
+  def read(keys, opts = {})
+    get(keys, opts.merge(:raw => true))
+  end
+
+  def set(key, value, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
+    expiry = opts[:expiry] || default_expiry
+    key    = cache_key(key)
+    data   = marshal(value, opts)
+    server(key).set(key, data, expiry, opts[:flags])
+    value
+  end
+
+  def write(key, value, opts = {})
+    set(key, value, opts.merge(:raw => true))
+  end
+
+  def add(key, value, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
+    expiry = opts[:expiry] || default_expiry
+    key    = cache_key(key)
+    data   = marshal(value, opts)
+    server(key).add(key, data, expiry, opts[:flags]) && value
+  end
+
+  def replace(key, value, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
+    expiry = opts[:expiry] || default_expiry
+    key    = cache_key(key)
+    data   = marshal(value, opts)
+    server(key).replace(key, data, expiry, opts[:flags]) && value
+  end
+
+  def cas(key, value, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
+    expiry = opts[:expiry] || default_expiry
+    key    = cache_key(key)
+    data   = marshal(value, opts)
+    server(key).cas(key, data, opts[:cas], expiry, opts[:flags]) && value
+  end
+
+  def append(key, value)
+    key = cache_key(key)
+    server(key).append(key, value)
+  end
+
+  def prepend(key, value)
+    key = cache_key(key)
+    server(key).prepend(key, value)
+  end
+
+  def count(key)
+    key = cache_key(key)
+    server(key).get(key).to_i
+  end
+
+  def incr(key, amount = 1)
+    key = cache_key(key)
+    server(key).incr(key, amount) || begin
+      server(key).add(key, '0')
+      server(key).incr(key, amount)
+    end
+  end
+
+  def decr(key, amount = 1)
+    key = cache_key(key)
+    server(key).decr(key, amount) || begin
+      server(key).add(key, '0')
+      0 # Cannot decrement below zero.
+    end
+  end
+
+  def update(key, opts = {})
+    value = get(key, :cas => true)
+    if value
+      cas(key, yield(value), opts.merge!(:cas => value.memcache_cas))
+    else
+      add(key, yield(value), opts)
+    end
+  end
+
+  def get_or_add(key, *args)
+    # Pseudo-atomic get and update.
+    if block_given?
+      opts = args[0] || {}
+      get(key) || add(key, yield, opts) || get(key)
+    else
+      opts = args[1] || {}
+      get(key) || add(key, args[0], opts) || get(key)
+    end
+  end
+
+  def get_or_set(key, *args)
+    if block_given?
+      opts = args[0] || {}
+      get(key) || set(key, yield, opts)
+    else
+      opts = args[1] || {}
+      get(key) || set(key, args[0], opts)
+    end
+  end
+
+  def get_some(keys, opts = {})
+    keys = keys.collect {|key| key.to_s}
+
+    records = opts[:disable] ? {} : self.get(keys, opts)
+    if opts[:validation]
+      records.delete_if do |key, value|
+        not opts[:validation].call(key, value)
+      end
+    end
+
+    keys_to_fetch = keys - records.keys
+    method = opts[:overwrite] ? :set : :add
+    if keys_to_fetch.any?
+      yield(keys_to_fetch).each do |key, value|
+        self.send(method, key, value, opts) unless opts[:disable] or opts[:disable_write]
+        records[key] = value
+>>>>>>> refactor
       end
     end
 
@@ -266,6 +458,7 @@ class MemCache
     handle_error nil, err
   end
 
+<<<<<<< HEAD
   ##
   # Increments the value for +key+ by +amount+ and returns the new value.
   # +key+ must already exist.  If +key+ is not an integer, it is assumed to be
@@ -322,6 +515,38 @@ class MemCache
       socket.write "delete #{cache_key} #{expiry}\r\n"
       socket.gets
     end
+=======
+  def lock(key, opts = {})
+    # Returns false if the lock already exists.
+    expiry = opts[:expiry] || LOCK_TIMEOUT
+    add(lock_key(key), Socket.gethostname, :expiry => expiry, :raw => true)
+  end
+
+  def unlock(key)
+    delete(lock_key(key))
+  end
+
+  def with_lock(key, opts = {})
+    until lock(key) do
+      return if opts[:ignore]
+      sleep(WRITE_LOCK_WAIT) # just wait
+    end
+    yield
+    unlock(key) unless opts[:keep]
+  end
+
+  def lock_key(key)
+    "lock:#{key}"
+  end
+
+  def locked?(key)
+    get(lock_key(key), :raw => true)
+  end
+
+  def delete(key)
+    key = cache_key(key)
+    server(key).delete(key)
+>>>>>>> refactor
   end
 
   ##
@@ -350,7 +575,11 @@ class MemCache
   # in a corrupted state.
 
   def reset
+<<<<<<< HEAD
     @servers.each { |server| server.close }
+=======
+    servers.each {|server| server.close}
+>>>>>>> refactor
   end
 
   ##
@@ -432,22 +661,66 @@ class MemCache
   # expiration on the entry.  Use set to specify an explicit expiry.
 
   def []=(key, value)
-    set key, value
+    set(key, value)
   end
 
   protected unless $TESTING
 
+<<<<<<< HEAD
   ##
   # Create a key for the cache, incorporating the namespace qualifier if
   # requested.
 
   def make_cache_key(key)
+=======
+  def multi_get(keys, opts = {})
+    return {} if keys.empty?
+    
+    key_to_input_key = {}
+    keys_by_server  = Hash.new { |h,k| h[k] = [] }
+    
+    # Store keys by servers. Also store a mapping from cache key to input key.
+    keys.each do |input_key|
+      key    = cache_key(input_key)
+      server = server(key)
+      key_to_input_key[key] = input_key.to_s
+      keys_by_server[server] << key
+    end
+    
+    # Fetch and combine the results. Also, map the cache keys back to the input keys.
+    results = {}
+    keys_by_server.each do |server, keys|
+      server.get(keys, opts[:cas]).each do |key, value|
+        input_key = key_to_input_key[key]
+        results[input_key] = unmarshal(value, opts)
+      end
+    end
+    results
+  end
+
+  def cache_key(key)
+>>>>>>> refactor
     safe_key = key ? key.to_s.gsub(/%/, '%%').gsub(/ /, '%s') : key
     if namespace.nil? then
       safe_key
     else
       "#{namespace}:#{safe_key}"
     end
+  end
+  
+  def marshal(value, opts = {})
+    opts[:raw] ? value : Marshal.dump(value)
+  end
+
+  def unmarshal(value, opts = {})
+    return value if value.nil? or opts[:raw]
+    
+    object = Marshal.load(value)
+    object.memcache_flags = value.memcache_flags
+    object.memcache_cas   = value.memcache_cas
+    object
+  rescue Exception => e
+    nil
   end
 
   ##
@@ -804,7 +1077,8 @@ class MemCache
     attr_reader :fallback
 
     def initialize
-      @cache_by_scope = { :default => MemCacheMock.new }
+      @cache_by_scope = {}
+      @cache_by_scope[:default] = Memcache.new(:server => Memcache::LocalServer)
       @fallback = :default
     end
     
@@ -835,3 +1109,10 @@ class MemCache
 
 end
 
+<<<<<<< HEAD
+=======
+# Add flags and cas
+class Object
+  attr_accessor :memcache_flags, :memcache_cas
+end
+>>>>>>> refactor
