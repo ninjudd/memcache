@@ -47,6 +47,45 @@ class MemcacheServerTest < Test::Unit::TestCase
     assert_equal 24, m['baz']
   end
 
+  def test_add_and_replace
+    100.times do |i|
+      m.replace(i.to_s, [:foo, i])
+      assert_equal nil, m.get(i.to_s)
+
+      m.add(i.to_s, [:bar, i])
+      assert_equal [:bar, i], m.get(i.to_s)
+
+      m.replace(i.to_s, [:foo, i])
+      assert_equal [:foo, i], m.get(i.to_s)
+
+      m.add(i.to_s, [:baz, i])
+      assert_equal [:foo, i], m.get(i.to_s)
+
+      m.replace(i.to_s, 'blah', :raw => true)
+      assert_equal 'blah', m.get(i.to_s, :raw => true)
+
+      m.delete(i.to_s)
+      assert_equal nil, m.get(i.to_s, :raw => true)
+
+      m.add(i.to_s, 'homerun', :raw => true)
+      assert_equal 'homerun', m.get(i.to_s, :raw => true)      
+    end
+  end
+
+  def test_append_and_prepend
+    100.times do |i|
+      m.append(i.to_s, 'doh!')
+      assert_equal nil, m.read(i.to_s)
+
+      m.write(i.to_s, 'bar')
+      m.prepend(i.to_s, 'foo')
+      assert_equal 'foobar', m.read(i.to_s)
+
+      m.append(i.to_s, i.to_s)
+      assert_equal "foobar#{i}", m.read(i.to_s)
+    end
+  end
+
   def test_get_or_set
     100.times do |i|
       m.get_or_set("foo#{i}", [i, :foo])
@@ -81,28 +120,17 @@ class MemcacheServerTest < Test::Unit::TestCase
     end
   end
 
-  def test_add_and_replace
+  def test_update
     100.times do |i|
-      m.replace(i.to_s, [:foo, i])
-      assert_equal nil, m.get(i.to_s)
+      m.set("foo#{i}", [:foo, i])
+      assert_equal [:foo, i], m["foo#{i}"]
 
-      m.add(i.to_s, [:bar, i])
-      assert_equal [:bar, i], m.get(i.to_s)
-
-      m.replace(i.to_s, [:foo, i])
-      assert_equal [:foo, i], m.get(i.to_s)
-
-      m.add(i.to_s, [:baz, i])
-      assert_equal [:foo, i], m.get(i.to_s)
-
-      m.replace(i.to_s, 'blah', :raw => true)
-      assert_equal 'blah', m.get(i.to_s, :raw => true)
-
-      m.delete(i.to_s)
-      assert_equal nil, m.get(i.to_s, :raw => true)
-
-      m.add(i.to_s, 'homerun', :raw => true)
-      assert_equal 'homerun', m.get(i.to_s, :raw => true)      
+      m.update("foo#{i}") do |list|
+        list << i.to_s
+        list << :bar
+        list
+      end
+      assert_equal [:foo, i, i.to_s, :bar], m["foo#{i}"]
     end
   end
 
@@ -136,6 +164,23 @@ class MemcacheServerTest < Test::Unit::TestCase
     assert_equal 'quick brown fox', m.get('foo')
   end
 
+  def test_expiry
+    100.times do |i|
+      m.set("int#{i}", i, :expiry => 2)
+      assert_equal i, m.get("int#{i}")
+
+      m.set("time#{i}", i, :expiry => Time.now + 2)
+      assert_equal i, m.get("time#{i}")
+    end
+
+    sleep 2
+
+    100.times do |i|
+      assert_equal nil, m.get("int#{i}")
+      assert_equal nil, m.get("time#{i}")
+    end
+  end
+
   def test_in_namespace
     threads = []
     10.times do |i|
@@ -166,5 +211,13 @@ class MemcacheServerTest < Test::Unit::TestCase
 
     m.decr('foo', 300)
     assert_equal 0, m.count('foo')
+  end
+
+  def test_flags
+    m.set('foo', :foo, :flags => 43)
+    assert_equal 43, m.get('foo').memcache_flags
+
+    m.set('foo', 'foo', :raw => true, :flags => 43)
+    assert_equal 43, m.get('foo', :raw => true).memcache_flags
   end
 end

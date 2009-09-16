@@ -81,26 +81,26 @@ class Memcache
     alias clear flush_all
 
     def gets(keys)
-      get(keys, :cas => true)
+      get(keys, true)
     end
 
-    def get(keys, opts = {})
-      return get([keys], opts)[keys.to_s] unless keys.kind_of?(Array)
+    def get(keys, cas = false)
+      return get([keys], cas)[keys.to_s] unless keys.kind_of?(Array)
       return {} if keys.empty?
 
-      method = opts[:cas] ? 'gets' : 'get'
+      method = cas ? 'gets' : 'get'
 
       results = {}
       read_command("#{method} #{keys.join(' ')}") do |response|
-        if opts[:cas] 
-          key, flags, length, cas_unique = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)/)
+        if cas
+          key, flags, length, cas = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)/)
         else
           key, flags, length = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+)/)
         end
           
         value = socket.read(length.to_i)
         value.memcache_flags = flags.to_i
-        value.memcache_cas_unique = cas_unique
+        value.memcache_cas   = cas
         results[key] = value
       end
       results
@@ -128,25 +128,25 @@ class Memcache
     def set(key, value, expiry = 0, flags = 0)
       return delete(key) if value.nil?
       check_writable!
-      write_command("set #{key} #{flags} #{expiry} #{value.to_s.size}", value)
+      write_command("set #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       value
     end
 
-    def cas(key, value, cas_unique, expiry = 0, flags = 0)
+    def cas(key, value, cas, expiry = 0, flags = 0)
       check_writable!
-      response = write_command("cas #{key} #{flags} #{expiry} #{value.to_s.size} #{cas_unique.to_i}", value)
+      response = write_command("cas #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size} #{cas.to_i}", value)
       response == "STORED\r\n" ? value : nil
     end
 
     def add(key, value, expiry = 0, flags = 0)
       check_writable!
-      response = write_command("add #{key} #{flags} #{expiry} #{value.to_s.size}", value)
+      response = write_command("add #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 
     def replace(key, value, expiry = 0, flags = 0)
       check_writable!
-      response = write_command("replace #{key} #{flags} #{expiry} #{value.to_s.size}", value)
+      response = write_command("replace #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 
@@ -179,6 +179,8 @@ class Memcache
 
     def send_command(*command)
       command = command.join("\r\n") if command.kind_of?(Array)
+#puts command
+#puts '==========================='
       socket.write("#{command}\r\n")
       response = socket.gets
       

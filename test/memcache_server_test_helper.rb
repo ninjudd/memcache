@@ -25,14 +25,18 @@ module MemcacheServerTestHelper
     assert_equal 'bar', m.get('bar')
 
     m.set('baz', '')
-    m.replace('baz', 'baz', 1)
+    m.replace('baz', 'baz', '1')
     assert_equal 'baz', m.get('baz')
 
-    sleep 1.5
+    m.set('bam', 'bap', Time.now + 1)
+    assert_equal 'bap', m.get('bam')
+
+    sleep 2
 
     assert_equal nil, m.get('foo')
     assert_equal nil, m.get('bar')
     assert_equal nil, m.get('baz')
+    assert_equal nil, m.get('bam')
   end
 
   def test_add_and_replace
@@ -137,18 +141,18 @@ module MemcacheServerTestHelper
       
       value = m.gets('thom')    
       assert_equal 'hartmann', value
-      m.cas('thom', 'thompson', value.memcache_cas_unique)
+      m.cas('thom', 'thompson', value.memcache_cas)
       assert_equal 'thompson', m.get('thom')
       
       value = m.gets('thom')
       m.delete('thom')
-      assert_nil m.cas('thom', 'hartson', value.memcache_cas_unique)
+      assert_nil m.cas('thom', 'hartson', value.memcache_cas)
       assert_equal nil, m.get('thom')
       
       m.add('thom', 'hartmann')
       value = m.gets('thom')
       m.set('thom', 'foo')
-      assert_nil m.cas('thom', 'hartson', value.memcache_cas_unique)
+      assert_nil m.cas('thom', 'hartson', value.memcache_cas)
       assert_equal 'foo', m.get('thom')
     end
   end

@@ -1,9 +1,9 @@
 require 'digest/sha1'
 
 class Memcache
-  class PartitionedServer < Server
+  class SegmentedServer < Server
     MAX_SIZE = 1000000 # bytes
-    PARTIAL_VALUE = 0x80000000
+    PARTIAL_VALUE = 0x40000000
     
     def get(keys, opts = {})
       return get([keys], opts)[keys.to_s] unless keys.kind_of?(Array)
@@ -13,10 +13,9 @@ class Memcache
       keys = {}
       keys_to_fetch = []
       results.each do |key, value|
-        next unless partitioned?(value)
-
+        next unless segmented?(value)
         hash, num = value.split(':')
-        keys[key] = []        
+        keys[key] = []
         num.to_i.times do |i|
           hash_key = "#{hash}:#{i}"
           keys_to_fetch << hash_key
@@ -30,44 +29,40 @@ class Memcache
         hashes.each do |hash_key|
           value << parts[hash_key]
         end
-        value.memcache_cas_unique = results[key].memcache_cas_unique
-        value.memcache_flags = results[key].memcache_flags
+        value.memcache_cas   = results[key].memcache_cas
+        value.memcache_flags = results[key].memcache_flags ^ PARTIAL_VALUE
         results[key] = value
       end
       results
     end
 
     def set(key, value, expiry = 0, flags = 0)
-      value, flags = store_partitions(key, value, expiry, flags)
+      value, flags = store_segments(key, value, expiry, flags)
       super(key, value, expiry, flags) && value
     end
 
-    def cas(key, value, cas_unique, expiry = 0, flags = 0)
-      value, flags = store_partitions(key, value, expiry, flags)
-      super(key, value, cas_unique, expiry, flags)
+    def cas(key, value, cas, expiry = 0, flags = 0)
+      value, flags = store_segments(key, value, expiry, flags)
+      super(key, value, cas, expiry, flags)
     end
 
     def add(key, value, expiry = 0, flags = 0)
-      value, flags = store_partitions(key, value, expiry, flags)
+      value, flags = store_segments(key, value, expiry, flags)
       super(key, value, expiry, flags)
     end
 
     def replace(key, value, expiry = 0, flags = 0)
-      value, flags = store_partitions(key, value, expiry, flags)
+      value, flags = store_segments(key, value, expiry, flags)
       super(key, value, expiry, flags)
     end
 
   private
 
-    def partitioned?(value)
+    def segmented?(value)
       value.memcache_flags & PARTIAL_VALUE == PARTIAL_VALUE
     end
 
-    def partition?(value)
-     
-    end
-
-    def partition(key, value)
+    def segment(key, value)
       hash  = Digest::SHA1.hexdigest("#{key}:#{Time.now}:#{rand}")
       parts = {}
       i = 0; offset = 0
@@ -79,9 +74,9 @@ class Memcache
       [master_key, parts]
     end
     
-    def store_partitions(key, value, expiry = 0, flags = 0)
+    def store_segments(key, value, expiry = 0, flags = 0)
       if value and value.size > MAX_SIZE
-        master_key, parts = partition(key, value)
+        master_key, parts = segment(key, value)
         parts.each do |hash, data|
           set(hash, data, expiry)
         end

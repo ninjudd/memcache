@@ -3,12 +3,14 @@ require 'zlib'
 $:.unshift(File.dirname(__FILE__))
 require 'memcache/server'
 require 'memcache/local_server'
-require 'memcache/partitioned_server'
+require 'memcache/segmented_server'
 
 class Memcache
   VERSION = '0.9.0'
 
-  DEFAULT_EXPIRY = 0
+  DEFAULT_EXPIRY  = 0
+  LOCK_TIMEOUT    = 5
+  WRITE_LOCK_WAIT = 0.001
 
   attr_reader :default_expiry, :default_namespace, :servers
 
@@ -16,7 +18,7 @@ class Memcache
     @readonly          = opts[:readonly]
     @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
     @default_namespace = opts[:namespace]
-    default_server = opts[:partition_values] ? PartitionedServer : Server
+    default_server = opts[:segment_large_values] ? SegmentedServer : Server
 
     @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
       case server
@@ -61,6 +63,8 @@ class Memcache
   end
 
   def get(keys, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
     if keys.kind_of?(Array)
       multi_get(keys, opts)
     else
@@ -68,35 +72,57 @@ class Memcache
 
       if opts[:expiry]
         value = server(key).gets(key)
-        server(key).cas(key, value, value.memcache_cas_unique, opts[:expiry]) if value
+        server(key).cas(key, value, value.memcache_cas, opts[:expiry]) if value
       else
-        value = server(key).get(key)
+        value = server(key).get(key, opts[:cas])
       end
-      return unless value
-      opts[:raw] ? value : Marshal.load(value)
+      unmarshal(value, opts)
     end
   end
 
+  def read(keys, opts = {})
+    get(keys, opts.merge(:raw => true))
+  end
+
   def set(key, value, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
     expiry = opts[:expiry] || default_expiry
     key    = cache_key(key)
-    data   = opts[:raw] ? value : Marshal.dump(value)
-    server(key).set(key, data, expiry)
+    data   = marshal(value, opts)
+    server(key).set(key, data, expiry, opts[:flags])
     value
   end
 
+  def write(key, value, opts = {})
+    set(key, value, opts.merge(:raw => true))
+  end
+
   def add(key, value, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
     expiry = opts[:expiry] || default_expiry
     key    = cache_key(key)
-    data   = opts[:raw] ? value : Marshal.dump(value)
-    server(key).add(key, data, expiry) && value
+    data   = marshal(value, opts)
+    server(key).add(key, data, expiry, opts[:flags]) && value
   end
 
   def replace(key, value, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
     expiry = opts[:expiry] || default_expiry
     key    = cache_key(key)
-    data   = opts[:raw] ? value : Marshal.dump(value)
-    server(key).replace(key, data, expiry) && value
+    data   = marshal(value, opts)
+    server(key).replace(key, data, expiry, opts[:flags]) && value
+  end
+
+  def cas(key, value, opts = {})
+    raise 'opts must be hash' unless opts.kind_of?(Hash)
+
+    expiry = opts[:expiry] || default_expiry
+    key    = cache_key(key)
+    data   = marshal(value, opts)
+    server(key).cas(key, data, opts[:cas], expiry, opts[:flags]) && value
   end
 
   def append(key, value)
@@ -130,6 +156,15 @@ class Memcache
     end
   end
 
+  def update(key, opts = {})
+    value = get(key, :cas => true)
+    if value
+      cas(key, yield(value), opts.merge!(:cas => value.memcache_cas))
+    else
+      add(key, yield(value), opts)
+    end
+  end
+
   def get_or_add(key, *args)
     # Pseudo-atomic get and update.
     if block_given?
@@ -154,25 +189,49 @@ class Memcache
   def get_some(keys, opts = {})
     keys = keys.collect {|key| key.to_s}
 
-    records = {}
-    records = self.get(keys) unless opts[:disable]
+    records = opts[:disable] ? {} : self.get(keys, opts)
     if opts[:validation]
       records.delete_if do |key, value|
         not opts[:validation].call(key, value)
       end
     end
+
     keys_to_fetch = keys - records.keys
-
     method = opts[:overwrite] ? :set : :add
-    expiry = opts[:expiry] || default_expiry
-
     if keys_to_fetch.any?
       yield(keys_to_fetch).each do |key, value|
-        self.send(method, key, value, expiry) unless opts[:disable] or opts[:disable_write]
+        self.send(method, key, value, opts) unless opts[:disable] or opts[:disable_write]
         records[key] = value
       end
     end
     records
+  end
+
+  def lock(key, opts = {})
+    # Returns false if the lock already exists.
+    expiry = opts[:expiry] || LOCK_TIMEOUT
+    add(lock_key(key), Socket.gethostname, :expiry => expiry, :raw => true)
+  end
+
+  def unlock(key)
+    delete(lock_key(key))
+  end
+
+  def with_lock(key, opts = {})
+    until lock(key) do
+      return if opts[:ignore]
+      sleep(WRITE_LOCK_WAIT) # just wait
+    end
+    yield
+    unlock(key) unless opts[:keep]
+  end
+
+  def lock_key(key)
+    "lock:#{key}"
+  end
+
+  def locked?(key)
+    get(lock_key(key), :raw => true)
   end
 
   def delete(key)
@@ -228,9 +287,9 @@ protected
     # Fetch and combine the results. Also, map the cache keys back to the input keys.
     results = {}
     keys_by_server.each do |server, keys|
-      server.get(keys).each do |key, value|
+      server.get(keys, opts[:cas]).each do |key, value|
         input_key = key_to_input_key[key]
-        results[input_key] = opts[:raw] ? value : Marshal.load(value)
+        results[input_key] = unmarshal(value, opts)
       end
     end
     results
@@ -243,6 +302,21 @@ protected
     else
       "#{namespace}:#{safe_key}"
     end
+  end
+  
+  def marshal(value, opts = {})
+    opts[:raw] ? value : Marshal.dump(value)
+  end
+
+  def unmarshal(value, opts = {})
+    return value if value.nil? or opts[:raw]
+    
+    object = Marshal.load(value)
+    object.memcache_flags = value.memcache_flags
+    object.memcache_cas   = value.memcache_cas
+    object
+  rescue Exception => e
+    nil
   end
 
   def server(key)
@@ -284,7 +358,7 @@ protected
   end
 end
 
-# Add flags and cas_unique
-class String
-  attr_accessor :memcache_flags, :memcache_cas_unique
+# Add flags and cas
+class Object
+  attr_accessor :memcache_flags, :memcache_cas
 end
