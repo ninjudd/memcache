@@ -21,9 +21,24 @@ class MemcacheServerTest < Test::Unit::TestCase
     100.times do |i|
       m.set(i.to_s, i)
       assert_equal i, m.get(i.to_s)
+    end
 
+    keys = (0..200).to_a
+    results = m.get(keys)
+    assert_equal 100, results.size
+    results.each do |key, value|
+      assert_equal key.to_i, value
+    end
+    
+    100.times do |i|
       m.set(i.to_s, i.to_s, :raw => true)
       assert_equal i.to_s, m.get(i.to_s, :raw => true)
+    end
+
+    results = m.get(keys ,:raw => true)
+    assert_equal 100, results.size
+    results.each do |key, value|
+      assert_equal key, value
     end
   end
 
@@ -89,6 +104,36 @@ class MemcacheServerTest < Test::Unit::TestCase
       m.add(i.to_s, 'homerun', :raw => true)
       assert_equal 'homerun', m.get(i.to_s, :raw => true)      
     end
+  end
+
+  def test_get_some
+    100.times do |i|
+      i = i * 2
+      m.set(i.to_s, i)
+      assert_equal i, m.get(i.to_s)
+    end
+
+    keys = (0...200).to_a
+    results = m.get_some(keys) do |missing_keys|
+      assert_equal 100, missing_keys.size
+      r = {}
+      missing_keys.each do |key|
+        r[key] = key.to_i
+      end
+      r
+    end
+
+    assert_equal 200, results.size
+    results.each do |key, value|
+      assert_equal key.to_i, value
+    end
+  end
+
+  def test_get_reset_expiry
+    m.add('foo', 'quick brown fox', :expiry => 1)
+    assert_equal 'quick brown fox', m.get('foo', :expiry => 2)
+    sleep(1)    
+    assert_equal 'quick brown fox', m.get('foo')
   end
 
   def test_in_namespace

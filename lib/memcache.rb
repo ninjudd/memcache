@@ -33,10 +33,6 @@ class Memcache
     end
   end
 
-  def fail_on_read_error?
-    @fail_on_read_error
-  end
-
   def inspect
     "<Memcache: %d servers, ns: %p, ro: %p>" % [@servers.length, namespace, @readonly]
   end
@@ -64,43 +60,21 @@ class Memcache
     end
   end
 
-  def get(key, opts = {})
-    key = cache_key(key)
-    
-    if opts[:expiry]
-      value = server(key).gets(key)
-      server(key).cas(key, data, value.memcache_cas_unique, expiry) if value
+  def get(keys, opts = {})
+    if keys.kind_of?(Array)
+      multi_get(keys, opts)
     else
-      value = server(key).get(key)
-    end
-    return unless value
-    opts[:raw] ? value : Marshal.load(value)
-  end
+      key = cache_key(keys)
 
-  def get_multi(*keys)
-    opts = keys.last.kind_of?(Hash) ? keys.pop : {}
-    
-    keys.flatten!
-    key_to_input_key = {}
-    keys_by_server  = Hash.new { |h,k| h[k] = [] }
-
-    # Store keys by servers. Also store a mapping from cache key to input key.
-    keys.each do |input_key|
-      key    = cache_key(input_key)
-      server = server(key)
-      key_to_input_key[key] = input_key 
-      keys_by_server[server] << key
-    end
-
-    # Fetch and combine the results. Also, map the cache keys back to the input keys.
-    results = {}
-    keys_by_server.each do |server, keys|
-      server.get(keys).each do |key, value|
-        input_key = key_to_input_key[key]
-        results[input_key] = opts[:raw] ? value : Marshal.load(value)
+      if opts[:expiry]
+        value = server(key).gets(key)
+        server(key).cas(key, value, value.memcache_cas_unique, opts[:expiry]) if value
+      else
+        value = server(key).get(key)
       end
+      return unless value
+      opts[:raw] ? value : Marshal.load(value)
     end
-    results
   end
 
   def set(key, value, opts = {})
@@ -181,7 +155,7 @@ class Memcache
     keys = keys.collect {|key| key.to_s}
 
     records = {}
-    records = self.get_multi(keys) unless opts[:disable]
+    records = self.get(keys) unless opts[:disable]
     if opts[:validation]
       records.delete_if do |key, value|
         not opts[:validation].call(key, value)
@@ -201,9 +175,9 @@ class Memcache
     records
   end
 
-  def delete(key, opts = {})
+  def delete(key)
     key = cache_key(key)
-    server(key).delete(key, opts[:delay])
+    server(key).delete(key)
   end
 
   def flush_all(opts = {})
@@ -236,6 +210,31 @@ class Memcache
   end
 
 protected
+
+  def multi_get(keys, opts = {})
+    return {} if keys.empty?
+    
+    key_to_input_key = {}
+    keys_by_server  = Hash.new { |h,k| h[k] = [] }
+    
+    # Store keys by servers. Also store a mapping from cache key to input key.
+    keys.each do |input_key|
+      key    = cache_key(input_key)
+      server = server(key)
+      key_to_input_key[key] = input_key.to_s
+      keys_by_server[server] << key
+    end
+    
+    # Fetch and combine the results. Also, map the cache keys back to the input keys.
+    results = {}
+    keys_by_server.each do |server, keys|
+      server.get(keys).each do |key, value|
+        input_key = key_to_input_key[key]
+        results[input_key] = opts[:raw] ? value : Marshal.load(value)
+      end
+    end
+    results
+  end
 
   def cache_key(key)
     safe_key = key ? key.to_s.gsub(/%/, '%%').gsub(/ /, '%s') : key
