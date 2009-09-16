@@ -46,6 +46,10 @@ class Memcache
       value
     end
 
+    def decr(key, amount = 1)
+      incr(key, -amount)
+    end
+
     def delete(key, expiry = nil)
       if expiry
         old_expiry = @expiry[key.to_s] || Time.now + expiry
@@ -63,8 +67,25 @@ class Memcache
     end
 
     def add(key, value, expiry = nil)
-      return false if get(key)
+      return nil if get(key)
       set(key, value, expiry)
+    end
+
+    def replace(key, value, expiry = nil)
+      return nil if get(key).nil?
+      set(key, value, expiry)
+    end
+
+    def append(key, value)
+      existing = get(key)
+      return nil if existing.nil?
+      set(key, existing + value)
+    end
+
+    def prepend(key, value)
+      existing = get(key)
+      return nil if existing.nil?
+      set(key, value + existing)
     end
   end
 end

@@ -1,6 +1,5 @@
 require 'test/unit'
 require 'rubygems'
-require 'active_record'
 require File.dirname(__FILE__) + '/../lib/memcache/db_server'
 require File.dirname(__FILE__) + '/memcache_server_test_helper'
 

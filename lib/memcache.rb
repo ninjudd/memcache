@@ -2,6 +2,8 @@ require 'zlib'
 
 $:.unshift(File.dirname(__FILE__))
 require 'memcache/server'
+require 'memcache/local_server'
+require 'memcache/partitioned_server'
 
 class Memcache
   VERSION = '0.9.0'
@@ -14,14 +16,15 @@ class Memcache
     @readonly          = opts[:readonly]
     @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
     @default_namespace = opts[:namespace]
-    
+    default_server = opts[:partition_values] ? PartitionedServer : Server
+
     @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
       case server
       when Hash
-        server = Server.new(server)
+        server = default_server.new(server)
       when String
         host, port = server.split(':')
-        server = Server.new(:host => host, :port => port)
+        server = default_server.new(:host => host, :port => port)
       when Class
         server = server.new
       end
@@ -62,8 +65,14 @@ class Memcache
   end
 
   def get(key, opts = {})
-    key   = cache_key(key)
-    value = server(key).get(key)
+    key = cache_key(key)
+    
+    if opts[:expiry]
+      value = server(key).gets(key)
+      server(key).cas(key, data, value.memcache_cas_unique, expiry) if value
+    else
+      value = server(key).get(key)
+    end
     return unless value
     opts[:raw] ? value : Marshal.load(value)
   end
@@ -94,6 +103,38 @@ class Memcache
     results
   end
 
+  def set(key, value, opts = {})
+    expiry = opts[:expiry] || default_expiry
+    key    = cache_key(key)
+    data   = opts[:raw] ? value : Marshal.dump(value)
+    server(key).set(key, data, expiry)
+    value
+  end
+
+  def add(key, value, opts = {})
+    expiry = opts[:expiry] || default_expiry
+    key    = cache_key(key)
+    data   = opts[:raw] ? value : Marshal.dump(value)
+    server(key).add(key, data, expiry) && value
+  end
+
+  def replace(key, value, opts = {})
+    expiry = opts[:expiry] || default_expiry
+    key    = cache_key(key)
+    data   = opts[:raw] ? value : Marshal.dump(value)
+    server(key).replace(key, data, expiry) && value
+  end
+
+  def append(key, value)
+    key = cache_key(key)
+    server(key).append(key, value)
+  end
+
+  def prepend(key, value)
+    key = cache_key(key)
+    server(key).prepend(key, value)
+  end
+
   def count(key)
     key = cache_key(key)
     server(key).get(key).to_i
@@ -108,31 +149,36 @@ class Memcache
   end
 
   def decr(key, amount = 1)
-    incr(key, -amount)
-  end
-  
-  def set(key, value, opts = {})
-    expiry = opts[:expiry] || default_expiry
-    key    = cache_key(key)
-    value  = Marshal.dump value unless opts[:raw]
-    server(key).set(key, value, expiry)
-    value
+    key = cache_key(key)
+    server(key).decr(key, amount) || begin
+      server(key).add(key, '0')
+      0 # Cannot decrement below zero.
+    end
   end
 
-  def add(key, value, opts = {})
-    expiry = opts[:expiry] || default_expiry
-    key    = cache_key(key)
-    value  = Marshal.dump value unless opts[:raw]
-    server(key).add(key, value, expiry)
+  def get_or_add(key, *args)
+    # Pseudo-atomic get and update.
+    if block_given?
+      opts = args[0] || {}
+      get(key) || add(key, yield, opts) || get(key)
+    else
+      opts = args[1] || {}
+      get(key) || add(key, args[0], opts) || get(key)
+    end
   end
 
-  def get_or_set(key, opts = {})
-    get(key) || set(key, yield, opts)
+  def get_or_set(key, *args)
+    if block_given?
+      opts = args[0] || {}
+      get(key) || set(key, yield, opts)
+    else
+      opts = args[1] || {}
+      get(key) || set(key, args[0], opts)
+    end
   end
 
   def get_some(keys, opts = {})
-    expiry = opts[:expiry] || default_expiry
-    keys   = keys.collect {|key| key.to_s}
+    keys = keys.collect {|key| key.to_s}
 
     records = {}
     records = self.get_multi(keys) unless opts[:disable]
@@ -143,20 +189,16 @@ class Memcache
     end
     keys_to_fetch = keys - records.keys
 
+    method = opts[:overwrite] ? :set : :add
+    expiry = opts[:expiry] || default_expiry
+
     if keys_to_fetch.any?
       yield(keys_to_fetch).each do |key, value|
-        self.set(key, value, opts[:expiry]) unless opts[:disable] or opts[:disable_write]
+        self.send(method, key, value, expiry) unless opts[:disable] or opts[:disable_write]
         records[key] = value
       end
     end
     records
-  end
-
-  def get_reset_expiry(key, expiry)
-    # TODO - fix race condition
-    result = get(key)
-    set(key, result, expiry) if result
-    result
   end
 
   def delete(key, opts = {})

@@ -30,7 +30,33 @@ class MemcacheServerTest < Test::Unit::TestCase
   end
 
   def test_get_or_set
-    
+    m.get_or_set('foo', :foo)
+    assert_equal :foo, m['foo']
+
+    m.get_or_set('foo') {raise}
+    assert_equal :foo, m['foo']    
+
+    # Overwrite if changed.
+    m.get_or_set('bar') do
+      m.set('bar', :foo)
+      :bar
+    end
+    assert_equal :bar, m['bar']
+  end
+
+  def test_get_or_add
+    m.get_or_add('foo', :foo)
+    assert_equal :foo, m['foo']
+
+    m.get_or_add('foo') {raise}
+    assert_equal :foo, m['foo']    
+
+    # Don't overwrite if changed.
+    m.get_or_add('bar') do
+      m.set('bar', :foo)
+      :bar
+    end
+    assert_equal :foo, m['bar']
   end
 
   def test_in_namespace

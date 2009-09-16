@@ -12,7 +12,7 @@ module MemcacheServerTestHelper
     assert_equal 'foo', m.get('2')
 
     m.set(2, 'bar', 0)
-    
+
     assert_equal 'bar', m.get('2')
     assert_equal 'bar', m.get('2')
   end
@@ -34,9 +34,13 @@ module MemcacheServerTestHelper
   end
 
   def test_append_and_prepend
+    m.append('foo', 'bar')
+    assert_equal nil, m.get('foo')
+
     m.set('foo', 'foo')
     m.append('foo', 'bar')
     assert_equal 'foobar', m.get('foo')
+
     m.prepend('foo', 'baz')
     assert_equal 'bazfoobar', m.get('foo')
   end
