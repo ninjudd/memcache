@@ -1,7 +1,8 @@
 require 'active_record'
+require 'memcache/migration'
 
 class Memcache
-  class DBServer
+  class PGServer
     attr_reader :db, :table
 
     def initialize(opts)
@@ -17,7 +18,7 @@ class Memcache
     end
 
     def flush_all(delay = nil)
-      db.query("TRUNCATE #{table}")
+      db.exec("TRUNCATE #{table}")
     end
 
     def get(keys)
@@ -43,7 +44,7 @@ class Memcache
         
         value = value.to_i + amount
         value = 0 if value < 0
-        db.query %{
+        db.exec %{
           UPDATE #{table} SET value = #{quote(value)}, updated_at = NOW()
             WHERE key = #{quote(key)}
         }
@@ -57,56 +58,73 @@ class Memcache
 
     def delete(key, expiry = 0)
       if expiry
-        db.query %{
+        result = db.exec %{
           UPDATE #{table} SET expires_at = NOW() + interval '#{expiry} seconds'
            WHERE key = #{quote(key)} AND #{expiry_clause(expiry)}
         }
       else
-        db.query %{
+        result = db.exec %{
           DELETE FROM #{table}
            WHERE key = #{quote(key)}
         }
       end
+      result.cmdtuples == 1
     end
 
     def set(key, value, expiry = 0)
+      delete_expired(key)
       transaction do
-        if exists?(key)
-          update(key, value, expiry)
-        else
-          insert(key, value, expiry)
-        end
+        result = update(key, value, expiry)
+        insert(key, value, expiry) if result.cmdtuples == 0
       end
+      value
     end
 
     def add(key, value, expiry = 0)
-      transaction do
-        delete_expired(key)
-        insert(key, value, expiry)
-      end
+      delete_expired(key)
+      insert(key, value, expiry)
+      value
     rescue PGError => e
       nil
     end
 
     def replace(key, value, expiry = 0)      
-      transaction do
-        delete_expired(key)
-        update(key, value, expiry)
-      end
-      value
+      delete_expired(key)
+      result = update(key, value, expiry)
+      result.cmdtuples == 1 ? value : nil
+    end
+
+    def append(key, value)      
+      delete_expired(key)
+      result = db.exec %{
+        UPDATE #{table}
+          SET value = value || #{quote(value)}, updated_at = NOW()
+          WHERE key = #{quote(key)}
+      }
+      result.cmdtuples == 1
+    end
+
+    def prepend(key, value)      
+      delete_expired(key)
+      result = db.exec %{
+        UPDATE #{table}
+          SET value = #{quote(value)} || value, updated_at = NOW()
+          WHERE key = #{quote(key)}
+      }
+      result.cmdtuples == 1
     end
 
   private
  
     def insert(key, value, expiry = 0)
-      db.query %{
+      db.exec %{
         INSERT INTO #{table} (key, value, updated_at, expires_at)
           VALUES (#{quote(key)}, #{quote(value)}, NOW(), #{expiry_sql(expiry)})
       }
     end
 
     def update(key, value, expiry = 0)
-      db.query %{
+      db.exec %{
         UPDATE #{table}
           SET value = #{quote(value)}, updated_at = NOW(), expires_at = #{expiry_sql(expiry)}
           WHERE key = #{quote(key)}
@@ -114,7 +132,7 @@ class Memcache
     end
 
     def exists?(key)
-      result = db.query %{
+      result = db.exec %{
         SELECT key FROM #{table}
           WHERE key = #{quote(key)}
       }
@@ -126,12 +144,12 @@ class Memcache
       
       begin 
         @in_transaction = true
-        db.query('BEGIN')
+        db.exec('BEGIN')
         value = yield
-        db.query('COMMIT')
+        db.exec('COMMIT')
         value
       rescue Exception => e
-        db.query('ROLLBACK')
+        db.exec('ROLLBACK')
         raise e
       ensure
         @in_transaction = false
@@ -144,7 +162,7 @@ class Memcache
     end
 
     def delete_expired(key)
-      db.query "DELETE FROM #{table} WHERE key = #{quote(key)} AND NOT (#{expiry_clause})"
+      db.exec "DELETE FROM #{table} WHERE key = #{quote(key)} AND NOT (#{expiry_clause})"
     end
     
     def expiry_clause(expiry = 0)
@@ -154,27 +172,5 @@ class Memcache
     def expiry_sql(expiry)
       expiry == 0 ? 'NULL' : "NOW() + interval '#{expiry} seconds'"
     end
-  end
-end
-
-class MemcacheDBMigration < ActiveRecord::Migration
-  class << self
-    attr_accessor :table
-  end
-
-  def self.up
-    create_table table, :id => false do |t|
-      t.string    :key
-      t.text      :value
-      t.timestamp :expires_at
-      t.timestamp :updated_at
-    end
-
-    add_index table, [:key], :unique => true
-    add_index table, [:expires_at]
-  end
-
-  def self.down
-    drop_table table
   end
 end

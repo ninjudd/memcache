@@ -153,13 +153,13 @@ class Memcache
     def append(key, value)
       check_writable!
       response = write_command("append #{key} 0 0 #{value.to_s.size}", value)
-      response == "STORED\r\n" ? value : nil
+      response == "STORED\r\n"
     end
 
     def prepend(key, value)
       check_writable!
       response = write_command("prepend #{key} 0 0 #{value.to_s.size}", value)
-      response == "STORED\r\n" ? value : nil
+      response == "STORED\r\n"
     end
 
   private
