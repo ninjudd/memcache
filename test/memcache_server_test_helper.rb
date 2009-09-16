@@ -17,6 +17,24 @@ module MemcacheServerTestHelper
     assert_equal 'bar', m.get('2')
   end
 
+  def test_expiry
+    m.set('foo', 'foo', 1)
+    assert_equal 'foo', m.get('foo')
+
+    m.add('bar', 'bar', 1)
+    assert_equal 'bar', m.get('bar')
+
+    m.set('baz', '')
+    m.replace('baz', 'baz', 1)
+    assert_equal 'baz', m.get('baz')
+
+    sleep 1.5
+
+    assert_equal nil, m.get('foo')
+    assert_equal nil, m.get('bar')
+    assert_equal nil, m.get('baz')
+  end
+
   def test_add_and_replace
     # Replace should do nothing if key doesn't exist.
     m.replace('foo', 'bar')
@@ -95,14 +113,7 @@ module MemcacheServerTestHelper
     
     assert_equal nil, m.get(2)
   end
-    
-  def test_expiry
-    m.add('test', '1', 1)
-    assert_equal '1', m.get('test')
-    sleep(2)
-    assert_equal nil, m.get('test')    
-  end
-
+  
   module AdvancedMethods
     def test_flags
       m.set('thom', 'hartmann', 0)

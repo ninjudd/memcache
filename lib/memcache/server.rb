@@ -120,9 +120,9 @@ class Memcache
       response == "NOT_FOUND\r\n" ? nil : response.to_i
     end
 
-    def delete(key, expiry = 0)
+    def delete(key)
       check_writable!
-      write_command("delete #{key} #{expiry}") == "DELETED\r\n"
+      write_command("delete #{key}") == "DELETED\r\n"
     end
 
     def set(key, value, expiry = 0, flags = 0)

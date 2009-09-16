@@ -56,26 +56,17 @@ class Memcache
       incr(key, -amount)
     end
 
-    def delete(key, expiry = 0)
-      if expiry
-        result = db.exec %{
-          UPDATE #{table} SET expires_at = NOW() + interval '#{expiry} seconds'
-           WHERE key = #{quote(key)} AND #{expiry_clause(expiry)}
-        }
-      else
-        result = db.exec %{
-          DELETE FROM #{table}
-           WHERE key = #{quote(key)}
-        }
-      end
-      result.cmdtuples == 1
+    def delete(key)
+      result = db.exec %{
+        DELETE FROM #{table}
+          WHERE key = #{quote(key)}
+      }
     end
 
     def set(key, value, expiry = 0)
-      delete_expired(key)
       transaction do
-        result = update(key, value, expiry)
-        insert(key, value, expiry) if result.cmdtuples == 0
+        delete(key)
+        insert(key, value, expiry)
       end
       value
     end
@@ -131,14 +122,6 @@ class Memcache
       }
     end
 
-    def exists?(key)
-      result = db.exec %{
-        SELECT key FROM #{table}
-          WHERE key = #{quote(key)}
-      }
-      result.any?
-    end
-
     def transaction
       return yield if @in_transaction
       
@@ -165,8 +148,8 @@ class Memcache
       db.exec "DELETE FROM #{table} WHERE key = #{quote(key)} AND NOT (#{expiry_clause})"
     end
     
-    def expiry_clause(expiry = 0)
-      "expires_at IS NULL OR expires_at > '#{expiry == 0 ? 'NOW()' : expiry_sql(expiry)}'"
+    def expiry_clause
+      "expires_at IS NULL OR expires_at > NOW()"
     end
 
     def expiry_sql(expiry)

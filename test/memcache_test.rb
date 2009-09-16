@@ -21,6 +21,9 @@ class MemcacheServerTest < Test::Unit::TestCase
     100.times do |i|
       m.set(i.to_s, i)
       assert_equal i, m.get(i.to_s)
+
+      m.set(i.to_s, i.to_s, :raw => true)
+      assert_equal i.to_s, m.get(i.to_s, :raw => true)
     end
   end
 
@@ -30,33 +33,62 @@ class MemcacheServerTest < Test::Unit::TestCase
   end
 
   def test_get_or_set
-    m.get_or_set('foo', :foo)
-    assert_equal :foo, m['foo']
+    100.times do |i|
+      m.get_or_set("foo#{i}", [i, :foo])
+      assert_equal [i, :foo], m["foo#{i}"]
 
-    m.get_or_set('foo') {raise}
-    assert_equal :foo, m['foo']    
+      m.get_or_set("foo#{i}") {raise}
+      assert_equal [i, :foo], m["foo#{i}"]    
 
-    # Overwrite if changed.
-    m.get_or_set('bar') do
-      m.set('bar', :foo)
-      :bar
+      # Overwrite if changed.
+      m.get_or_set("bar#{i}") do
+        m.set("bar#{i}", [i, :foo])
+        [i, :bar]
+      end
+      assert_equal [i, :bar], m["bar#{i}"]
     end
-    assert_equal :bar, m['bar']
   end
 
   def test_get_or_add
-    m.get_or_add('foo', :foo)
-    assert_equal :foo, m['foo']
+    100.times do |i|
+      m.get_or_add("foo#{i}", [:foo, i])
+      assert_equal [:foo, i], m["foo#{i}"]
 
-    m.get_or_add('foo') {raise}
-    assert_equal :foo, m['foo']    
+      m.get_or_add("foo#{i}") {raise}
+      assert_equal [:foo, i], m["foo#{i}"]    
 
-    # Don't overwrite if changed.
-    m.get_or_add('bar') do
-      m.set('bar', :foo)
-      :bar
+      # Don't overwrite if changed.
+      m.get_or_add("bar#{i}") do
+        m.set("bar#{i}", [:foo, i])
+        :bar
+      end
+      assert_equal [:foo, i], m["bar#{i}"]
     end
-    assert_equal :foo, m['bar']
+  end
+
+  def test_add_and_replace
+    100.times do |i|
+      m.replace(i.to_s, [:foo, i])
+      assert_equal nil, m.get(i.to_s)
+
+      m.add(i.to_s, [:bar, i])
+      assert_equal [:bar, i], m.get(i.to_s)
+
+      m.replace(i.to_s, [:foo, i])
+      assert_equal [:foo, i], m.get(i.to_s)
+
+      m.add(i.to_s, [:baz, i])
+      assert_equal [:foo, i], m.get(i.to_s)
+
+      m.replace(i.to_s, 'blah', :raw => true)
+      assert_equal 'blah', m.get(i.to_s, :raw => true)
+
+      m.delete(i.to_s)
+      assert_equal nil, m.get(i.to_s, :raw => true)
+
+      m.add(i.to_s, 'homerun', :raw => true)
+      assert_equal 'homerun', m.get(i.to_s, :raw => true)      
+    end
   end
 
   def test_in_namespace
