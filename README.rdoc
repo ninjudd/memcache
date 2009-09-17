@@ -25,10 +25,10 @@ several important ways.
 === Interface
 
 I tried to keep the basic interface as similar as I could to memcache-client. In some
-cases, _memcache_ can be a near drop-in replacement for memcache-client. There are differences though.
-
-- I renamed the main class from +MemCache+ to +Memcache+ to prevent confusion and to force
-  those switching to _memcache_ to update their code.
+cases, _memcache_ can be a near drop-in replacement for memcache-client. However, I did
+rename the main class from +MemCache+ to +Memcache+ to prevent confusion and to force
+those switching to _memcache_ to update their code. Here are the notable interface
+changes:
 
 - +expiry+ and +raw+ are specified as options in a hash now, instead of as unnamed parameters.
 
