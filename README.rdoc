@@ -20,14 +20,15 @@ served as a starting point for this code.
 
 Like memcache-client, _memcache_ (shown in italics when I am referring to this
 library) is a memcached client, but it differs significantly from memcache-client in
-several important ways. First, I have renamed the main class from MemCache to Memcache to
-prevent confusion and to force those switching to _memcache_ to update their code.
+several important ways.
 
 === Interface
 
 I tried to keep the basic interface as similar as I could to memcache-client. In some
-cases, _memcache_ can be a drop-in replacement for memcache-client. There are some important
-differences though.
+cases, _memcache_ can be a near drop-in replacement for memcache-client. There are differences though.
+
+- I renamed the main class from +MemCache+ to +Memcache+ to prevent confusion and to force
+  those switching to _memcache_ to update their code.
 
 - +expiry+ and +raw+ are specified as options in a hash now, instead of as unnamed parameters.
 
