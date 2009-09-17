@@ -1,7 +1,7 @@
 require 'test/unit'
 require File.dirname(__FILE__) + '/test_helper'
 
-class MemcacheServerTest < Test::Unit::TestCase
+class MemcacheTest < Test::Unit::TestCase
   PORTS = [11212, 11213, 11214, 11215, 11216, 11217]
 
   def m
@@ -166,10 +166,10 @@ class MemcacheServerTest < Test::Unit::TestCase
 
   def test_expiry
     100.times do |i|
-      m.set("int#{i}", i, :expiry => 2)
+      m.set("int#{i}", i, :expiry => 1)
       assert_equal i, m.get("int#{i}")
 
-      m.set("time#{i}", i, :expiry => Time.now + 2)
+      m.set("time#{i}", i, :expiry => Time.now + 1)
       assert_equal i, m.get("time#{i}")
     end
 

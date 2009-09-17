@@ -153,7 +153,11 @@ class Memcache
     end
 
     def expiry_sql(expiry)
-      expiry == 0 ? 'NULL' : "NOW() + interval '#{expiry} seconds'"
+      if expiry.kind_of?(Time)
+        quote(expiry.to_s(:db))
+      else
+        expiry == 0 ? 'NULL' : "NOW() + interval '#{expiry} seconds'"
+      end
     end
   end
 end

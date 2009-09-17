@@ -7,6 +7,8 @@ require 'pp'
 $LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib')
 require 'memcache'
 
+system 'killall memcached 2> /dev/null'
+
 class Test::Unit::TestCase
   def start_memcache(*ports)
     ports.each do |port|

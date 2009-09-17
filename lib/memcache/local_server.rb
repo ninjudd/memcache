@@ -50,28 +50,28 @@ class Memcache
       incr(key, -amount)
     end
 
-    def delete(key, expiry = nil)
-      if expiry
-        old_expiry = @expiry[key.to_s] || Time.now + expiry
-        @expiry[key.to_s] = [old_expiry, expiry].min
-      else
-        @data.delete(key.to_s)
-      end
+    def delete(key)
+      @data.delete(key.to_s)
     end
 
-    def set(key, value, expiry = nil)
+    def set(key, value, expiry = 0)
       key = key.to_s
-      @data[key]   = value
-      @expiry[key] = Time.now + expiry if expiry and expiry != 0
+      @data[key] = value
+      if expiry.kind_of?(Time)
+        @expiry[key] = expiry
+      else  
+        expiry = expiry.to_i
+        @expiry[key] = expiry == 0 ? nil : Time.now + expiry
+      end
       value
     end
 
-    def add(key, value, expiry = nil)
+    def add(key, value, expiry = 0)
       return nil if get(key)
       set(key, value, expiry)
     end
 
-    def replace(key, value, expiry = nil)
+    def replace(key, value, expiry = 0)
       return nil if get(key).nil?
       set(key, value, expiry)
     end

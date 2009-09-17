@@ -3,7 +3,7 @@ require 'rubygems'
 require File.dirname(__FILE__) + '/memcache_server_test_helper'
 require File.dirname(__FILE__) + '/../lib/memcache/pg_server'
 
-class MemcacheDBServerTest < Test::Unit::TestCase
+class MemcachePGServerTest < Test::Unit::TestCase
   ActiveRecord::Base.establish_connection(
     :adapter  => "postgresql",
     :host     => "localhost",
