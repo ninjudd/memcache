@@ -9,8 +9,15 @@ class Memcache
       "local:#{hash}"
     end
 
-    def flush_all(delay = nil)
-      raise 'flush_all not supported with delay' if delay
+    def stats
+      { # curr_items may include items that have expired.
+        'curr_items'   => @data.size,
+        'expiry_count' => @expiry.size,
+      }
+    end
+
+    def flush_all(delay = 0)
+      raise 'flush_all not supported with delay' if delay != 0
       @data.clear
       @expiry.clear
     end
@@ -68,6 +75,11 @@ class Memcache
         @expiry[key] = expiry == 0 ? nil : Time.now + expiry
       end
       value
+    end
+
+    def cas(key, value, cas, expiry = 0, flags = 0)
+      # No cas implementation yet, just do a set for now.
+      set(key, value, expiry, flags)
     end
 
     def add(key, value, expiry = 0, flags = 0)

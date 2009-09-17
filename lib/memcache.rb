@@ -255,14 +255,20 @@ class Memcache
     servers.each {|server| server.close}
   end
 
-  def stats
-    stats = {}
-    servers.each do |server|
-      stats[server.name] = server.stats
+  def stats(field = nil)
+    if field
+      servers.collect do |server|
+        server.stats[field]
+      end
+    else
+      stats = {}
+      servers.each do |server|
+        stats[server.name] = server.stats
+      end
+      stats
     end
-    stats
   end
-
+ 
   alias clear flush_all
 
   def [](key)
@@ -355,6 +361,10 @@ protected
     
     def []=(scope, cache)
       @cache_by_scope[scope.to_sym] = cache
+    end
+
+    def reset
+      @cache_by_scope.values.each {|c| c.reset}
     end
   end
   
