@@ -11,10 +11,6 @@ class Memcache
     attr_reader :host, :port, :status, :retry_at
     attr_writer :strict_reads
 
-    class MemcacheError < StandardError; end
-    class ServerError   < MemcacheError; end
-    class ClientError   < MemcacheError; end
-
     def initialize(opts)
       @host         = opts[:host]
       @port         = opts[:port] || DEFAULT_PORT
@@ -72,6 +68,10 @@ class Memcache
       end
       stats
     end
+    
+    def count
+      stats['curr_items']
+    end
 
     def flush_all(delay = nil)
       check_writable!
@@ -99,6 +99,8 @@ class Memcache
         end
           
         value = socket.read(length.to_i)
+        match_response!(socket.read(2), "\r\n")
+
         value.memcache_flags = flags.to_i
         value.memcache_cas   = cas
         results[key] = value
@@ -108,14 +110,14 @@ class Memcache
 
     def incr(key, amount = 1)
       check_writable!
-      raise MemcacheError, "incr requires unsigned value" if amount < 0
+      raise Error, "incr requires unsigned value" if amount < 0
       response = write_command("incr #{key} #{amount}")
       response == "NOT_FOUND\r\n" ? nil : response.to_i
     end
 
     def decr(key, amount = 1)
       check_writable!
-      raise MemcacheError, "decr requires unsigned value" if amount < 0
+      raise Error, "decr requires unsigned value" if amount < 0
       response = write_command("decr #{key} #{amount}")
       response == "NOT_FOUND\r\n" ? nil : response.to_i
     end
@@ -162,10 +164,24 @@ class Memcache
       response == "STORED\r\n"
     end
 
+    class Error < StandardError; end
+    class ConnectionError < Error
+      def initialize(e)
+        if e.kind_of?(String)
+          super
+        else
+          super("(#{e.class}) #{e.message}")
+          set_backtrace(e.backtrace)
+        end
+      end
+    end
+    class ServerError < Error; end
+    class ClientError < Error; end
+
   private
 
     def check_writable!
-      raise MemcacheError, "Update of readonly cache" if readonly?
+      raise Error, "Update of readonly cache" if readonly?
     end
 
     def match_response!(response, regexp)
@@ -179,8 +195,6 @@ class Memcache
 
     def send_command(*command)
       command = command.join("\r\n") if command.kind_of?(Array)
-#puts command
-#puts '==========================='
       socket.write("#{command}\r\n")
       response = socket.gets
       
@@ -190,6 +204,10 @@ class Memcache
       end
       
       block_given? ? yield(response) : response
+    rescue Exception => e
+      close(e) # Mark dead.
+      raise e if e.kind_of?(Error)
+      raise ConnectionError.new(e)
     end
 
     def write_command(*command, &block)
@@ -199,30 +217,25 @@ class Memcache
       rescue Exception => e
         puts "Memcache write error: #{e.class}: #{e.to_s}"
         unless retried
-          # Close the socket and retry once.
           retried = true
-          close
           retry
         end
-        close(e) # Mark dead.
         raise(e)
       end
     end
 
     def read_command(command, &block)
-      raise MemcacheError, "Server dead, will retry at #{retry_at}" unless alive?
+      raise ConnectionError, "Server dead, will retry at #{retry_at}" unless alive?
       send_command(command) do |response|
         while response do
           return if response == "END\r\n"
           yield(response)
-          match_response!(socket.read(2), "\r\n")
           response = socket.gets
         end
         unexpected_eof!
       end
     rescue Exception => e
       puts "Memcache read error: #{e.class}: #{e.to_s}"
-      close(e) # Mark dead.
       raise(e) if strict_reads?
     end
 
@@ -243,7 +256,7 @@ class Memcache
     end
 
     def unexpected_eof!
-      raise MemcacheError, 'unexpected end of file' 
+      raise Error, 'unexpected end of file'
     end
   end
 end
