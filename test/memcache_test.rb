@@ -157,7 +157,7 @@ class MemcacheTest < Test::Unit::TestCase
     end
   end
 
-  def test_get_reset_expiry
+  def test_get_with_reset_expiry
     m.add('foo', 'quick brown fox', :expiry => 1)
     assert_equal 'quick brown fox', m.get('foo', :expiry => 2)
     sleep(1)    

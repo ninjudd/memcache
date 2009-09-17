@@ -215,7 +215,7 @@ class Memcache
       begin
         send_command(*command, &block)
       rescue Exception => e
-        puts "Memcache write error: #{e.class}: #{e.to_s}"
+        puts "Memcache write error: #{e.class} #{e.to_s}"
         unless retried
           retried = true
           retry
@@ -235,7 +235,7 @@ class Memcache
         unexpected_eof!
       end
     rescue Exception => e
-      puts "Memcache read error: #{e.class}: #{e.to_s}"
+      puts "Memcache read error: #{e.class} #{e.to_s}"
       raise(e) if strict_reads?
     end
 

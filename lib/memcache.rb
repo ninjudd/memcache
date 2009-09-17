@@ -327,6 +327,7 @@ protected
     object.memcache_cas   = value.memcache_cas
     object
   rescue Exception => e
+    puts "Memcache read error: #{e.class} #{e.to_s} while unmarshalling value: #{value}"
     nil
   end
 
