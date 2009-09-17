@@ -262,7 +262,10 @@ class Memcache
   end
 
   alias clear flush_all
-  alias [] get
+
+  def [](key)
+    get(key)
+  end
 
   def []=(key, value)
     set(key, value)

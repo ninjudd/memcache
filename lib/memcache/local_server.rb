@@ -15,7 +15,11 @@ class Memcache
       @expiry.clear
     end
 
-    def get(keys)
+    def gets(keys)
+      get(keys, true)
+    end
+
+    def get(keys, cas = false)
       if keys.kind_of?(Array)
         hash = {}
         keys.each do |key|
@@ -54,7 +58,7 @@ class Memcache
       @data.delete(key.to_s)
     end
 
-    def set(key, value, expiry = 0)
+    def set(key, value, expiry = 0, flags = 0)
       key = key.to_s
       @data[key] = value
       if expiry.kind_of?(Time)
@@ -66,12 +70,12 @@ class Memcache
       value
     end
 
-    def add(key, value, expiry = 0)
+    def add(key, value, expiry = 0, flags = 0)
       return nil if get(key)
       set(key, value, expiry)
     end
 
-    def replace(key, value, expiry = 0)
+    def replace(key, value, expiry = 0, flags = 0)
       return nil if get(key).nil?
       set(key, value, expiry)
     end
