@@ -252,7 +252,7 @@ class Memcache
   end
 
   def reset
-    servers.each {|server| server.close}
+    servers.each {|server| server.close if server.respond_to?(:close)}
   end
 
   def stats(field = nil)
