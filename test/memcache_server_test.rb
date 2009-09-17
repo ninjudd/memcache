@@ -14,4 +14,15 @@ class MemcacheServerTest < Test::Unit::TestCase
   def teardown
     stop_memcache(PORT)
   end
+
+  def test_stats
+    m.set('foo', '1')
+    m.get('foo')
+    m.get('bar')
+
+    stats = m.stats
+    assert_equal 2, stats['cmd_get'] 
+    assert_equal 1, stats['cmd_set']
+    assert_equal 1, stats['curr_items']
+  end
 end
