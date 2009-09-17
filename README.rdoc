@@ -12,6 +12,10 @@ served as a starting point for this code.
  cache.get('stuff')
  => [:symbol, "String", 1, {:bar => 5}]
 
+ cache['things'] = {:foo => '1', :bar => [1,2,3]}
+ cache['things']
+ => {:foo => "1", :bar => [1,2,3]}
+
 == How is this different from memcache-client?
 
 Like memcache-client, _memcache_ (shown in italics when I am referring to this
@@ -45,7 +49,20 @@ differences though.
 
    cache.get('foo', :expiry => 1.day)
 
-- Support for flags has been added to all 
+- Support for flags has been added to all methods. So you can store additional metadata on
+  each value. Depending on which server version you are using, flags can be 16 bit or 32
+  bit unsigned integers (though it seems that memcache 1.4.1 returns signed values if the
+  upper bit is set).
+
+   cache.set('foo', :aquatic, :flags => 0b11101111)
+   value = cache.get('foo')
+   => :aquatic
+   value.memcache_flags.to_s(2)
+   => "11101111"
+
+   cache.set('foo', 'aquatic', :raw => true, :flags => 0xff08)
+   cache.get('foo', :raw => true).memcache_flags.to_s(2)
+   => "1111111100001000"
 
 - +incr+ and +decr+ automatically initialize the value to 0 if the key doesn't
   exist. The +count+ method returns the integer count associated with a given key.
