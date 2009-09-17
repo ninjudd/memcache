@@ -5,7 +5,7 @@
 
 Gem::Specification.new do |s|
   s.name = %q{memcache}
-  s.version = "0.9.0"
+  s.version = "0.9.1"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Justin Balthrop"]
@@ -17,7 +17,8 @@ Gem::Specification.new do |s|
      "README.rdoc"
   ]
   s.files = [
-    "README.rdoc",
+    "LICENSE",
+     "README.rdoc",
      "Rakefile",
      "VERSION",
      "lib/memcache.rb",
@@ -27,9 +28,7 @@ Gem::Specification.new do |s|
      "lib/memcache/pg_server.rb",
      "lib/memcache/segmented_server.rb",
      "lib/memcache/server.rb",
-     "lib/memcache_extended.rb",
-     "lib/memcache_mock.rb",
-     "lib/memcache_util.rb",
+     "memcache.gemspec",
      "test/memcache_local_server_test.rb",
      "test/memcache_null_server_test.rb",
      "test/memcache_pg_server_test.rb",
@@ -37,10 +36,7 @@ Gem::Specification.new do |s|
      "test/memcache_server_test.rb",
      "test/memcache_server_test_helper.rb",
      "test/memcache_test.rb",
-     "test/test_helper.rb",
-     "test/test_mem_cache.rb",
-     "test/test_memcache_extended.rb",
-     "test/test_memcache_mock.rb"
+     "test/test_helper.rb"
   ]
   s.homepage = %q{http://github.com/ninjudd/memcache}
   s.rdoc_options = ["--charset=UTF-8"]
@@ -55,10 +51,7 @@ Gem::Specification.new do |s|
      "test/memcache_server_test.rb",
      "test/memcache_server_test_helper.rb",
      "test/memcache_test.rb",
-     "test/test_helper.rb",
-     "test/test_mem_cache.rb",
-     "test/test_memcache_extended.rb",
-     "test/test_memcache_mock.rb"
+     "test/test_helper.rb"
   ]
 
   if s.respond_to? :specification_version then
