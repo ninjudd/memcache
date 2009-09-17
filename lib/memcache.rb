@@ -29,6 +29,8 @@ class Memcache
         server = default_server.new(:host => host, :port => port)
       when Class
         server = server.new
+      when :local
+        server = Memcache::LocalServer.new
       end
       server.strict_reads = true if opts[:strict_reads] and server.respond_to?(:strict_reads=)
       server
