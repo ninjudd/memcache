@@ -211,8 +211,7 @@ class MemCache
     with_server(key) do |server, cache_key|
       value = cache_get server, cache_key
       return nil if value.nil?
-      value = Marshal.load(value) unless raw
-      return value
+      raw ? value : unmarshal(value)
     end
   rescue TypeError => err
     handle_error nil, err
@@ -257,7 +256,7 @@ class MemCache
       keys = keys.join ' '
       values = cache_get_multi server, keys
       values.each do |key, value|
-        results[cache_keys[key]] = opts[:raw] ? value : Marshal.load(value)
+        results[cache_keys[key]] = opts[:raw] ? value : unmarshal(value)
       end
     end
 
@@ -436,6 +435,12 @@ class MemCache
   end
 
   protected unless $TESTING
+
+  def unmarshal(value)
+    object = Marshal.load(value)
+  rescue Exception => e
+    nil
+  end
 
   ##
   # Create a key for the cache, incorporating the namespace qualifier if
