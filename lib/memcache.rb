@@ -256,7 +256,8 @@ class MemCache
       keys = keys.join ' '
       values = cache_get_multi server, keys
       values.each do |key, value|
-        results[cache_keys[key]] = opts[:raw] ? value : unmarshal(value)
+        value = opts[:raw] ? value : unmarshal(value)
+        results[cache_keys[key]] = value if value
       end
     end
 
