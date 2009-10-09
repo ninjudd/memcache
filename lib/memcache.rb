@@ -90,9 +90,10 @@ class Memcache
     raise 'opts must be hash' unless opts.kind_of?(Hash)
 
     expiry = opts[:expiry] || default_expiry
+    flags  = opts[:flags]  || 0
     key    = cache_key(key)
     data   = marshal(value, opts)
-    server(key).set(key, data, expiry, opts[:flags])
+    server(key).set(key, data, expiry, flags)
     value
   end
 
@@ -104,27 +105,30 @@ class Memcache
     raise 'opts must be hash' unless opts.kind_of?(Hash)
 
     expiry = opts[:expiry] || default_expiry
+    flags  = opts[:flags]  || 0
     key    = cache_key(key)
     data   = marshal(value, opts)
-    server(key).add(key, data, expiry, opts[:flags]) && value
+    server(key).add(key, data, expiry, flags) && value
   end
 
   def replace(key, value, opts = {})
     raise 'opts must be hash' unless opts.kind_of?(Hash)
 
     expiry = opts[:expiry] || default_expiry
+    flags  = opts[:flags]  || 0
     key    = cache_key(key)
     data   = marshal(value, opts)
-    server(key).replace(key, data, expiry, opts[:flags]) && value
+    server(key).replace(key, data, expiry, flags) && value
   end
 
   def cas(key, value, opts = {})
     raise 'opts must be hash' unless opts.kind_of?(Hash)
 
     expiry = opts[:expiry] || default_expiry
+    flags  = opts[:flags]  || 0
     key    = cache_key(key)
     data   = marshal(value, opts)
-    server(key).cas(key, data, opts[:cas], expiry, opts[:flags]) && value
+    server(key).cas(key, data, opts[:cas], expiry, flags) && value
   end
 
   def append(key, value)
