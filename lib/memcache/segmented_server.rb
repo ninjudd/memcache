@@ -26,12 +26,20 @@ class Memcache
       parts = super(keys_to_fetch)
       keys.each do |key, hashes|
         value = ''
-        hashes.each do |hash_key|
-          value << parts[hash_key]
+        hashes.each do |hash_key|          
+          if part = parts[hash_key]
+            value << part
+          else
+            value = nil
+            break
+          end
         end
-        value.memcache_cas   = results[key].memcache_cas
-        value.memcache_flags = results[key].memcache_flags ^ PARTIAL_VALUE
-        results[key] = value
+
+        if value
+          value.memcache_cas   = results[key].memcache_cas
+          value.memcache_flags = results[key].memcache_flags ^ PARTIAL_VALUE
+          results[key] = value
+        end
       end
       results
     end
