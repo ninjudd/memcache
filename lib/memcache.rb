@@ -339,8 +339,8 @@ protected
     raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
     return servers.first if servers.length == 1
 
-    n = Zlib.crc32(key) % servers.length
-    servers[n]
+    hash = (Zlib.crc32(key) >> 16) & 0x7fff
+    servers[hash % servers.length]
   end
 
   class Pool
