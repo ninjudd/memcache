@@ -10,7 +10,7 @@ class Memcache
 
   DEFAULT_EXPIRY  = 0
   LOCK_TIMEOUT    = 5
-  WRITE_LOCK_WAIT = 0.001
+  WRITE_LOCK_WAIT = 1
 
   attr_reader :default_expiry, :default_namespace, :servers
 
