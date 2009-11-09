@@ -67,7 +67,7 @@ class Memcache
 
     def set(key, value, expiry = 0, flags = 0)
       key = key.to_s
-      @data[key] = value
+      @data[key] = value.to_s
       if expiry.kind_of?(Time)
         @expiry[key] = expiry
       else  
