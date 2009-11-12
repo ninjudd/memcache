@@ -124,7 +124,7 @@ class Memcache
 
     def delete(key)
       check_writable!
-      write_command("delete #{key}") == "DELETED\r\n"
+      write_command("delete #{key}") == "DELETED\r\n" ? true : nil
     end
 
     def set(key, value, expiry = 0, flags = 0)
