@@ -59,14 +59,14 @@ class Memcache
     def stats
       stats = {}
       read_command('stats') do |response|
-        key, value = match_response!(response, /^STAT ([\w]+) ([\w\.\:]+)/)
+        key, value = match_response!(response, /^STAT ([\w]+) (-?[\w\.\:]+)/)
 
         if ['rusage_user', 'rusage_system'].include?(key)
           seconds, microseconds = value.split(/:/, 2)
           microseconds ||= 0
           stats[key] = Float(seconds) + (Float(microseconds) / 1_000_000)
         else
-          stats[key] = (value =~ /^\d+$/ ? value.to_i : value)
+          stats[key] = (value =~ /^-?\d+$/ ? value.to_i : value)
         end
       end
       stats
