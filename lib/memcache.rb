@@ -148,18 +148,12 @@ class Memcache
 
   def incr(key, amount = 1)
     key = cache_key(key)
-    server(key).incr(key, amount) || begin
-      server(key).add(key, '0')
-      server(key).incr(key, amount)
-    end
+    server(key).incr(key, amount)
   end
 
   def decr(key, amount = 1)
     key = cache_key(key)
-    server(key).decr(key, amount) || begin
-      server(key).add(key, '0')
-      0 # Cannot decrement below zero.
-    end
+    server(key).decr(key, amount)
   end
 
   def update(key, opts = {})

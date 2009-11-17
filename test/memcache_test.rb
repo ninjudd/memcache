@@ -17,7 +17,7 @@ class MemcacheTest < Test::Unit::TestCase
     stop_memcache(*PORTS)
   end
 
-  def test_get_and_set
+  def test_get_and_set    
     100.times do |i|
       m.set(i.to_s, i)
       assert_equal i, m.get(i.to_s)
@@ -197,6 +197,8 @@ class MemcacheTest < Test::Unit::TestCase
   end
 
   def test_incr_and_decr
+    m.write('foo', 0)
+
     m.incr('foo', 100)
     assert_equal 100, m.count('foo')
 

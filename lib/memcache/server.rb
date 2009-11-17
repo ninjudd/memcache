@@ -194,7 +194,7 @@ class Memcache
     end
 
     def send_command(*command)
-      command = command.join("\r\n") if command.kind_of?(Array)
+      command = command.join("\r\n")
       socket.write("#{command}\r\n")
       response = socket.gets
       
