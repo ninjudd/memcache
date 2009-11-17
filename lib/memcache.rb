@@ -37,6 +37,12 @@ class Memcache
     end
   end
 
+  def clone
+    copy = self.clone
+    copy.servers.collect! {|s| s.clone}
+    copy
+  end
+
   def inspect
     "<Memcache: %d servers, ns: %p, ro: %p>" % [@servers.length, namespace, @readonly]
   end

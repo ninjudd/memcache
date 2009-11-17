@@ -19,6 +19,10 @@ class Memcache
       @status       = 'NOT CONNECTED'
     end
 
+    def clone
+      self.class.new(:host => host, :port => port, :readonly => readonly?, :strict_reads => strict_reads?)
+    end
+
     def inspect
       "<Memcache::Server: %s:%d (%s)>" % [@host, @port, @status]
     end
