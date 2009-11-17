@@ -9,7 +9,6 @@ class Memcache
     DEFAULT_PORT     = 11211
 
     attr_reader :host, :port, :status, :retry_at
-    attr_writer :strict_reads
 
     def initialize(opts)
       @host         = opts[:host]

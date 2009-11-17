@@ -20,16 +20,15 @@ class Memcache
     @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
       case server
       when Hash
-        server = default_server.new(server)
+        server = default_server.new(opts.merge(server))
       when String
         host, port = server.split(':')
-        server = default_server.new(:host => host, :port => port)
+        server = default_server.new(opts.merge(:host => host, :port => port))
       when Class
         server = server.new
       when :local
         server = Memcache::LocalServer.new
       end
-      server.strict_reads = true if opts[:strict_reads] and server.respond_to?(:strict_reads=)
       server
     end
   end
