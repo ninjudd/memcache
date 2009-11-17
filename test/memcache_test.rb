@@ -222,4 +222,12 @@ class MemcacheTest < Test::Unit::TestCase
     m.set('foo', 'foo', :raw => true, :flags => 43)
     assert_equal 43, m.get('foo', :raw => true).memcache_flags
   end
+
+  def test_clone
+    m.set('foo', 1)
+    c = m.clone
+
+    assert_not_equal m.servers.collect {|s| s.send(:socket)},
+                     c.servers.collect {|s| s.send(:socket)}
+  end
 end

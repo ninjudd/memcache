@@ -6,8 +6,6 @@ require 'memcache/local_server'
 require 'memcache/segmented_server'
 
 class Memcache
-  VERSION = '0.9.0'
-
   DEFAULT_EXPIRY  = 0
   LOCK_TIMEOUT    = 5
   WRITE_LOCK_WAIT = 1
@@ -15,7 +13,6 @@ class Memcache
   attr_reader :default_expiry, :default_namespace, :servers
 
   def initialize(opts)
-    @readonly          = opts[:readonly]
     @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
     @default_namespace = opts[:namespace]
     default_server = opts[:segment_large_values] ? SegmentedServer : Server
@@ -38,13 +35,15 @@ class Memcache
   end
 
   def clone
-    copy = self.clone
-    copy.servers.collect! {|s| s.clone}
-    copy
+    self.class.new(
+      :default_expiry    => default_expiry,
+      :default_namespace => default_namespace,
+      :servers           => servers.collect {|s| s.clone}
+    )
   end
 
   def inspect
-    "<Memcache: %d servers, ns: %p, ro: %p>" % [@servers.length, namespace, @readonly]
+    "<Memcache: %d servers, ns: %p>" % [@servers.length, namespace]
   end
 
   def namespace

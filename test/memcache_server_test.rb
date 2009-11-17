@@ -25,4 +25,11 @@ class MemcacheServerTest < Test::Unit::TestCase
     assert_equal 1, stats['cmd_set']
     assert_equal 1, stats['curr_items']
   end
+  
+  def test_clone
+    m.set('foo', 1)
+    c = m.clone
+
+    assert_not_equal m.send(:socket), c.send(:socket)
+  end
 end
