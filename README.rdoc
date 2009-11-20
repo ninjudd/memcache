@@ -172,7 +172,7 @@ by attempting to connect.
 
 == Installation
 
-  $ sudo gem install ninjudd-memcache-client --source http://gems.github.com
+  $ sudo gem install memcache --source http://gemcutter.org
 
 == License:
 
