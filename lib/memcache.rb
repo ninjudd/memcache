@@ -91,7 +91,7 @@ class Memcache
   end
 
   def set(key, value, opts = {})
-    raise 'opts must be hash' unless opts.kind_of?(Hash)
+    opts = compatible_opts(opts)
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
@@ -106,7 +106,7 @@ class Memcache
   end
 
   def add(key, value, opts = {})
-    raise 'opts must be hash' unless opts.kind_of?(Hash)
+    opts = compatible_opts(opts)
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
@@ -116,7 +116,7 @@ class Memcache
   end
 
   def replace(key, value, opts = {})
-    raise 'opts must be hash' unless opts.kind_of?(Hash)
+    opts = compatible_opts(opts)
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
@@ -281,7 +281,34 @@ class Memcache
     set(key, value)
   end
 
+  def self.init(yaml_file = nil)
+    yaml_file = File.join(Rails.root, 'config', 'memcached.yml')
+
+    if File.exists?(yaml_file)
+      yaml = YAML.load_file(yaml_file)
+      defaults = (yaml.delete('defaults') || {}).symbolize_keys
+      config   = (yaml[Rails.env] || {}).symbolize_keys
+
+      if not config.empty? and not config[:disabled]
+        if config[:servers]
+          opts = defaults.merge(config.symbolize_keys)
+          Object.const_set('CACHE', Memcache.new(opts))
+        else
+          config.each do |connection, opts|
+            opts = defaults.merge(opts.symbolize_keys)
+            Memcache.pool[connection] = Memcache.new(opts)
+          end
+        end
+      end
+    end
+  end
+
 protected
+
+  def compatible_opts(opts)
+    # Support passing expiry instead of opts. This may be deprecated in the future.
+    opts.kind_of?(Hash) ? opts : {:expiry => opts}
+  end
 
   def multi_get(keys, opts = {})
     return {} if keys.empty?
