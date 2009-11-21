@@ -30,6 +30,7 @@ Gem::Specification.new do |s|
      "lib/memcache/pg_server.rb",
      "lib/memcache/segmented_server.rb",
      "lib/memcache/server.rb",
+     "memcache.gemspec",
      "test/memcache_local_server_test.rb",
      "test/memcache_null_server_test.rb",
      "test/memcache_pg_server_test.rb",
