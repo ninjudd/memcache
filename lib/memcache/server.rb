@@ -23,7 +23,7 @@ class Memcache
     end
 
     def inspect
-      "<Memcache::Server: %s:%d (%s)>" % [@host, @port, @status]
+      "<#{self.class.name}: %s:%d (%s)>" % [@host, @port, @status]
     end
 
     def name
@@ -87,7 +87,7 @@ class Memcache
       get(keys, true)
     end
 
-    def get(keys, cas = false)
+    def get(keys, cas = nil)
       return get([keys], cas)[keys.to_s] unless keys.kind_of?(Array)
       return {} if keys.empty?
 
