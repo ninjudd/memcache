@@ -82,7 +82,7 @@ class Memcache
       else
         value = server(key).get(key, opts[:cas])
       end
-      unmarshal(value, opts)
+      opts[:raw] ? value : unmarshal(value, key)
     end
   end
 
@@ -329,7 +329,7 @@ protected
     keys_by_server.each do |server, keys|
       server.get(keys, opts[:cas]).each do |key, value|
         input_key = key_to_input_key[key]
-        results[input_key] = unmarshal(value, opts)
+        results[input_key] = opts[:raw] ? value : unmarshal(value, key)
       end
     end
     results
@@ -348,15 +348,15 @@ protected
     opts[:raw] ? value : Marshal.dump(value)
   end
 
-  def unmarshal(value, opts = {})
-    return value if value.nil? or opts[:raw]
+  def unmarshal(value, key = nil)
+    return value if value.nil?
     
     object = Marshal.load(value)
     object.memcache_flags = value.memcache_flags
     object.memcache_cas   = value.memcache_cas
     object
   rescue Exception => e
-    puts "Memcache read error: #{e.class} #{e.to_s} while unmarshalling value: #{value}"
+    puts "Memcache read error: #{e.class} #{e.to_s} on key '#{key}' while unmarshalling value: #{value}"
     nil
   end
 

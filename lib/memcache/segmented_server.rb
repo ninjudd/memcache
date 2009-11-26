@@ -38,8 +38,8 @@ class Memcache
         if value
           value.memcache_cas   = results[key].memcache_cas
           value.memcache_flags = results[key].memcache_flags ^ PARTIAL_VALUE
-          results[key] = value
         end
+        results[key] = value
       end
       results
     end
@@ -86,7 +86,7 @@ class Memcache
       if value and value.size > MAX_SIZE
         master_key, parts = segment(key, value)
         parts.each do |hash, data|
-          set(hash, data, expiry)
+          set(hash, data, expiry + 1) # We want the segments to expire slightly after the master key.
         end
         [master_key, flags | PARTIAL_VALUE]
       else
