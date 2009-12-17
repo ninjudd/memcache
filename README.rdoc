@@ -5,32 +5,32 @@ Fixed the corrupted segment management, get and set methods for +SegmentedServer
 To cache active record models with their _associations_ in a module you must call some code that will exploit the contents, to assure the internal data will be saved within main records. Also to unmarshal the associations you must have the class called in the context of get.
 Example:
 
-class Tree < ActiveRecord::Base
- has_many :branches
-end
-
-class Branch < ActiveRecord::Base
- belongs_to :tree
-end
-
-module Foo
-
- def self.test1(params)
-  params.each {}
-  cache.set('test', params)
+ class Tree < ActiveRecord::Base
+  has_many :branches
  end
 
- def self.test2(classes)
-  classes.each {|k| k.class}
-  cache.get('test')
+ class Branch < ActiveRecord::Base
+  belongs_to :tree
  end
 
-end
+ module Foo
 
-t = Tree.create
-t.branches.create
-Foo.test1 [t]                #this will cache t with its branch
-Foo.test2 [Tree, Branch]     #this will load from cache the tree with his branch
+  def self.test1(params)
+   params.each {}
+   cache.set('test', params)
+  end
+
+  def self.test2(classes)
+   classes.each {|k| k.class}
+   cache.get('test')
+  end
+
+ end
+
+ t = Tree.create
+ t.branches.create
+ Foo.test1 [t]                #this will cache t with its branch
+ Foo.test2 [Tree, Branch]     #this will load from cache the tree with his branch
 
 --------------------------------------------------------------------------------------------
 
