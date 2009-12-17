@@ -5,7 +5,7 @@
 
 Gem::Specification.new do |s|
   s.name = %q{segmented-memcache}
-  s.version = "1.2.0"
+  s.version = "1.2.1"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Justin Balthrop, Alessandro Dal Grande, Fabio Segalla"]
@@ -29,7 +29,7 @@ Gem::Specification.new do |s|
      "lib/memcache/pg_server.rb",
      "lib/memcache/segmented_server.rb",
      "lib/memcache/server.rb",
-     "memcache.gemspec",
+     "segmented-memcache.gemspec",
      "test/memcache_local_server_test.rb",
      "test/memcache_null_server_test.rb",
      "test/memcache_pg_server_test.rb",
