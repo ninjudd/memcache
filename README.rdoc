@@ -1,6 +1,6 @@
 == DEVELON
 
-Fixed the corrupted segment management, get and set methods for +SegmentedServer+. Now used memory is slightly inferior and there are no dangling segments.
+This is a fork of Justin Balthrop's memcache gem. The corrupted segment management, get and set methods for +SegmentedServer+ have been fixed. Now used memory is slightly inferior and there are no dangling segments.
 
 To cache active record models with their _associations_ in a module you must call some code that will exploit the contents, to assure the internal data will be saved within main records. Also to unmarshal the associations you must have the class called in the context of get.
 Example:
@@ -31,6 +31,10 @@ Example:
  t.branches.create
  Foo.test1 [t]                #this will cache t with its branch
  Foo.test2 [Tree, Branch]     #this will load from cache the tree with his branch
+
+== Installation
+
+  $ sudo gem install segmented-memcache --source http://gemcutter.org
 
 --------------------------------------------------------------------------------------------
 
@@ -206,10 +210,6 @@ finally marking a server as dead and raising an exception. We will not attempt t
 from a dead server for 5 seconds, but a write will always attempt to revive a dead server
 by attempting to connect.
 
-== Installation
-
-  $ sudo gem install memcache --source http://gemcutter.org
-
 == License:
 
-Copyright (c) 2009 Justin Balthrop, Geni.com; Published under The MIT License, see LICENSE
+Copyright (c) 2009 Justin Balthrop, Geni.com, Develon s.r.l.; Published under The MIT License, see LICENSE

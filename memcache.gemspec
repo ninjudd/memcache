@@ -4,14 +4,14 @@
 # -*- encoding: utf-8 -*-
 
 Gem::Specification.new do |s|
-  s.name = %q{memcache}
-  s.version = "1.1.0"
+  s.name = %q{segmented-memcache}
+  s.version = "1.2.0"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
-  s.authors = ["Justin Balthrop"]
-  s.date = %q{2009-11-25}
+  s.authors = ["Justin Balthrop, Alessandro Dal Grande, Fabio Segalla"]
+  s.date = %q{2009-12-17}
   s.description = %q{Ruby client for memcached supporting advanced protocol features and pluggable architecture.}
-  s.email = %q{code@justinbalthrop.com}
+  s.email = %q{lab@develon.com}
   s.extra_rdoc_files = [
     "LICENSE",
      "README.rdoc"
@@ -39,7 +39,7 @@ Gem::Specification.new do |s|
      "test/memcache_test.rb",
      "test/test_helper.rb"
   ]
-  s.homepage = %q{http://github.com/ninjudd/memcache}
+  s.homepage = %q{http://github.com/develon/memcache}
   s.rdoc_options = ["--charset=UTF-8"]
   s.require_paths = ["lib"]
   s.rubygems_version = %q{1.3.5}
