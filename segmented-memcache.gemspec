@@ -22,7 +22,7 @@ Gem::Specification.new do |s|
      "README.rdoc",
      "Rakefile",
      "VERSION.yml",
-     "lib/memcache.rb",
+     "lib/segmented-memcache.rb",
      "lib/memcache/local_server.rb",
      "lib/memcache/migration.rb",
      "lib/memcache/null_server.rb",
