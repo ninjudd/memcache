@@ -49,6 +49,7 @@ class Memcache
     end
 
     def set(key, value, expiry = 0, flags = 0)
+      delete key if !(super_get(key)).nil?
       value, flags = store_segments(key, value, expiry, flags)
       super(key, value, expiry, flags) && value
     end
@@ -75,7 +76,7 @@ class Memcache
     end
 
     def segment(key, value)
-      hash  = Digest::SHA1.hexdigest("#{key}")
+      hash  = Digest::SHA1.hexdigest("#{key}:#{Time.now}:#{rand}")
       parts = {}
       i = 0; offset = 0
       while offset < value.size
