@@ -5,13 +5,14 @@
 
 Gem::Specification.new do |s|
   s.name = %q{memcache}
-  s.version = "1.1.0"
+  s.version = "1.2.0"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Justin Balthrop"]
-  s.date = %q{2009-11-25}
+  s.date = %q{2009-12-17}
   s.description = %q{Ruby client for memcached supporting advanced protocol features and pluggable architecture.}
   s.email = %q{code@justinbalthrop.com}
+  s.extensions = ["ext/extconf.rb"]
   s.extra_rdoc_files = [
     "LICENSE",
      "README.rdoc"
