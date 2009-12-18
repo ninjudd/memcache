@@ -85,8 +85,9 @@ class Memcache
     def store_segments(key, value, expiry = 0, flags = 0)
       if value and value.size > MAX_SIZE
         master_key, parts = segment(key, value)
+        expiry += 1 unless expiry == 0 # We want the segments to expire slightly after the master key.
         parts.each do |hash, data|
-          set(hash, data, expiry + 1) # We want the segments to expire slightly after the master key.
+          set(hash, data, expiry)
         end
         [master_key, flags | PARTIAL_VALUE]
       else
