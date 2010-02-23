@@ -4,7 +4,7 @@ $:.unshift(File.dirname(__FILE__))
 require 'memcache/server'
 require 'memcache/local_server'
 require 'memcache/segmented_server'
-require 'memcache/native_server'
+require 'native_server'
 
 class Memcache
   DEFAULT_EXPIRY  = 0

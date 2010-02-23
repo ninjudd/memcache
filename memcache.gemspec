@@ -23,6 +23,7 @@ Gem::Specification.new do |s|
      "README.rdoc",
      "Rakefile",
      "VERSION.yml",
+     "bench/benchmark.rb",
      "ext/extconf.rb",
      "ext/native_server.c",
      "lib/memcache.rb",
@@ -49,8 +50,7 @@ Gem::Specification.new do |s|
   s.rubygems_version = %q{1.3.5}
   s.summary = %q{Advanced ruby memcache client}
   s.test_files = [
-    "test/benchmark.rb",
-     "test/memcache_local_server_test.rb",
+    "test/memcache_local_server_test.rb",
      "test/memcache_native_server_test.rb",
      "test/memcache_null_server_test.rb",
      "test/memcache_pg_server_test.rb",
