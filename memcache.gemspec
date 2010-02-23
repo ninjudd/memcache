@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Justin Balthrop"]
-  s.date = %q{2009-12-17}
+  s.date = %q{2010-02-22}
   s.description = %q{Ruby client for memcached supporting advanced protocol features and pluggable architecture.}
   s.email = %q{code@justinbalthrop.com}
   s.extensions = ["ext/extconf.rb"]
@@ -23,6 +23,8 @@ Gem::Specification.new do |s|
      "README.rdoc",
      "Rakefile",
      "VERSION.yml",
+     "ext/extconf.rb",
+     "ext/native_server.c",
      "lib/memcache.rb",
      "lib/memcache/local_server.rb",
      "lib/memcache/migration.rb",
@@ -32,6 +34,7 @@ Gem::Specification.new do |s|
      "lib/memcache/server.rb",
      "memcache.gemspec",
      "test/memcache_local_server_test.rb",
+     "test/memcache_native_server_test.rb",
      "test/memcache_null_server_test.rb",
      "test/memcache_pg_server_test.rb",
      "test/memcache_segmented_server_test.rb",
@@ -46,7 +49,9 @@ Gem::Specification.new do |s|
   s.rubygems_version = %q{1.3.5}
   s.summary = %q{Advanced ruby memcache client}
   s.test_files = [
-    "test/memcache_local_server_test.rb",
+    "test/benchmark.rb",
+     "test/memcache_local_server_test.rb",
+     "test/memcache_native_server_test.rb",
      "test/memcache_null_server_test.rb",
      "test/memcache_pg_server_test.rb",
      "test/memcache_segmented_server_test.rb",
