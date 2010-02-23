@@ -167,20 +167,6 @@ class Memcache
       response == "STORED\r\n"
     end
 
-    class Error < StandardError; end
-    class ConnectionError < Error
-      def initialize(e)
-        if e.kind_of?(String)
-          super
-        else
-          super("(#{e.class}) #{e.message}")
-          set_backtrace(e.backtrace)
-        end
-      end
-    end
-    class ServerError < Error; end
-    class ClientError < Error; end
-
   private
 
     def check_writable!

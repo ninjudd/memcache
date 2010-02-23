@@ -14,7 +14,7 @@ class Test::Unit::TestCase
     ports.each do |port|
       system("memcached -p #{port} -U 0 -d -P /tmp/memcached_#{port}.pid")
     end
-    sleep 0.1
+    sleep 0.5
   end
 
   def stop_memcache(*ports)
