@@ -13,13 +13,12 @@ class Memcache
     def initialize(opts)
       @host         = opts[:host]
       @port         = opts[:port] || DEFAULT_PORT
-      @readonly     = opts[:readonly]
       @strict_reads = opts[:strict_reads]
       @status       = 'NOT CONNECTED'
     end
 
     def clone
-      self.class.new(:host => host, :port => port, :readonly => readonly?, :strict_reads => strict_reads?)
+      self.class.new(:host => host, :port => port, :strict_reads => strict_reads?)
     end
 
     def inspect
@@ -34,10 +33,6 @@ class Memcache
       @retry_at.nil? or @retry_at < Time.now
     end
 
-    def readonly?
-      @readonly
-    end
-
     def strict_reads?
       @strict_reads
     end
@@ -46,7 +41,7 @@ class Memcache
       # Close the socket. If there is an error, mark the server dead.
       @socket.close if @socket and not @socket.closed?
       @socket = nil
-      
+
       if error
         @retry_at = Time.now + READ_RETRY_DELAY
         @status   = "DEAD: %s: %s, will retry at %s" % [error.class, error.message, @retry_at]
@@ -71,13 +66,12 @@ class Memcache
       end
       stats
     end
-    
+
     def count
       stats['curr_items']
     end
 
     def flush_all(delay = nil)
-      check_writable!
       write_command("flush_all #{delay}")
     end
 
@@ -100,7 +94,7 @@ class Memcache
         else
           key, flags, length = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+)/)
         end
-          
+
         value = socket.read(length.to_i)
         match_response!(socket.read(2), "\r\n")
 
@@ -112,57 +106,48 @@ class Memcache
     end
 
     def incr(key, amount = 1)
-      check_writable!
       raise Error, "incr requires unsigned value" if amount < 0
       response = write_command("incr #{key} #{amount}")
-      response == "NOT_FOUND\r\n" ? nil : response.to_i
+      response == "NOT_FOUND\r\n" ? nil : response.slice(0..-3)
     end
 
     def decr(key, amount = 1)
-      check_writable!
       raise Error, "decr requires unsigned value" if amount < 0
       response = write_command("decr #{key} #{amount}")
-      response == "NOT_FOUND\r\n" ? nil : response.to_i
+      response == "NOT_FOUND\r\n" ? nil : response.slice(0..-3)
     end
 
     def delete(key)
-      check_writable!
       write_command("delete #{key}") == "DELETED\r\n" ? true : nil
     end
 
     def set(key, value, expiry = 0, flags = 0)
       return delete(key) if value.nil?
-      check_writable!
       write_command("set #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       value
     end
 
     def cas(key, value, cas, expiry = 0, flags = 0)
-      check_writable!
       response = write_command("cas #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size} #{cas.to_i}", value)
       response == "STORED\r\n" ? value : nil
     end
 
     def add(key, value, expiry = 0, flags = 0)
-      check_writable!
       response = write_command("add #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 
     def replace(key, value, expiry = 0, flags = 0)
-      check_writable!
       response = write_command("replace #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 
     def append(key, value)
-      check_writable!
       response = write_command("append #{key} 0 0 #{value.to_s.size}", value)
       response == "STORED\r\n"
     end
 
     def prepend(key, value)
-      check_writable!
       response = write_command("prepend #{key} 0 0 #{value.to_s.size}", value)
       response == "STORED\r\n"
     end
@@ -183,10 +168,6 @@ class Memcache
 
   private
 
-    def check_writable!
-      raise Error, "Update of readonly cache" if readonly?
-    end
-
     def match_response!(response, regexp)
       # Make sure that the response matches the protocol.
       unexpected_eof! if response.nil?
@@ -200,12 +181,12 @@ class Memcache
       command = command.join("\r\n")
       socket.write("#{command}\r\n")
       response = socket.gets
-      
+
       unexpected_eof! if response.nil?
       if response =~ /^(ERROR|CLIENT_ERROR|SERVER_ERROR) (.*)\r\n/
         raise ($1 == 'SERVER_ERROR' ? ServerError : ClientError), $2
       end
-      
+
       block_given? ? yield(response) : response
     rescue Exception => e
       close(e) # Mark dead.
@@ -251,7 +232,7 @@ class Memcache
         if Socket.constants.include? 'TCP_NODELAY'
           @socket.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
         end
-        
+
         @retry_at = nil
         @status   = 'CONNECTED'
       end
