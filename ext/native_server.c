@@ -119,7 +119,7 @@ static VALUE ns_get(int argc, VALUE *argv, VALUE self) {
     rb_hash_aset(results, key, value);
   }
 
-  if (error != MEMCACHED_SUCCESS) { 
+  if (error != MEMCACHED_END) { 
     printf("Memcache read error: %s %u\n", memcached_strerror(mc, error), error);
   }
 
