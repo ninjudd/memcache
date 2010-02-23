@@ -5,13 +5,21 @@ require 'ruby-debug' if ENV['DEBUG']
 puts `uname -a`
 puts "Ruby #{RUBY_VERSION}p#{RUBY_PATCHLEVEL}"
 
-["memcached", "memcache"].each do |gem_name|
+#--------------------------------------------------
+# ["memcached", "memcache"].each do |gem_name|
+#-------------------------------------------------- 
+["memcached"].each do |gem_name|
   require gem_name
   gem gem_name
   puts "Loaded #{gem_name} #{Gem.loaded_specs[gem_name].version.to_s rescue nil}"
 end
 
+$:.unshift(File.dirname(__FILE__))
+require  '../lib/memcache'
+
 class Bench
+  class InvalidTest < StandardError; end
+
   MEMCACHED_PORTS = [10001, 10002]
 
   def initialize(loops = nil, stack_depth = nil)
@@ -56,6 +64,7 @@ private
   def start_servers
     MEMCACHED_PORTS.each do |port|
       system("memcached -p #{port} -U 0 -d -P /tmp/memcached_#{port}.pid")
+      sleep 0.3
     end
   end
 
@@ -65,7 +74,7 @@ private
       next unless File.file?(file)
 
       pid = File.read(file).to_i
-      Process.kill('TERM', pid)
+      Process.kill('TERM', pid) rescue nil
     end
   end
 
@@ -74,9 +83,12 @@ private
 
     servers = MEMCACHED_PORTS.collect{|port| "127.0.0.1:#{port}"}
     @clients = {
-      'memcached'       => Memcached::Rails.new(servers, :buffer_requests => false, :no_block => false, :namespace => 'namespace'),
-      'Memcache'        => Memcache.new(:servers => servers, :namespace => 'namespace'),
-      'Memcache:native' => Memcache.new(:servers => servers, :namespace => 'namespace', :native => true),
+      'memcached'              => Memcached::Rails.new(servers, :buffer_requests => false, :no_block => false, :namespace => 'namespace'),
+      'Memcache'               => Memcache.new(:servers => servers, :namespace => 'namespace'),
+      #--------------------------------------------------
+      # 'Memcache:native'        => Memcache.new(:servers => servers, :namespace => 'namespace', :native => true),
+      # 'Memcache:native:nowrap' => Memcache::NativeServer.new(:servers => servers),
+      #-------------------------------------------------- 
     }
   end
 
@@ -86,6 +98,7 @@ private
       begin
         yield client
         @benchmark.report("#{test_name}:#{client_name}") { @loops.times { yield client } }
+      rescue InvalidTest
       rescue => e
         puts "#{test_name}:#{client_name} => #{e.class}: #{e}"
         @clients = nil
@@ -108,6 +121,10 @@ private
         c.set @k1, @m_value, :expiry => 0, :raw => true
         c.set @k2, @m_value, :expiry => 0, :raw => true
         c.set @k3, @m_value, :expiry => 0, :raw => true
+      elsif c.class == Memcache::NativeServer 
+        c.set @k1, @m_value
+        c.set @k2, @m_value
+        c.set @k3, @m_value
       else
         c.set @k1, @m_value, 0, true
         c.set @k2, @m_value, 0, true
@@ -120,6 +137,10 @@ private
         c.get @k1, :raw => true
         c.get @k2, :raw => true
         c.get @k3, :raw => true
+      elsif c.class == Memcache::NativeServer 
+        c.get @k1
+        c.get @k2
+        c.get @k3
       else
         c.get @k1, true
         c.get @k2, true
@@ -130,24 +151,8 @@ private
     benchmark_clients("get-multi") do |c|
       if c.class == Memcache
         c.get @keys, :raw => true
-      else
-        c.get_multi @keys, true
-      end
-    end
-
-    benchmark_clients("append") do |c|
-      c.append @k1, @m_value
-      c.append @k2, @m_value
-      c.append @k3, @m_value
-    end
-
-    benchmark_clients("delete") do |c|
-      c.delete @k1
-    end
-
-    benchmark_clients("get-multi") do |c|
-      if c.class == Memcache
-        c.get @keys, :raw => true
+      elsif c.class == Memcache::NativeServer 
+        c.get @keys
       else
         c.get_multi @keys, true
       end
@@ -182,6 +187,10 @@ private
         c.set @k1, @m_large_value, :expiry => 0, :raw => true
         c.set @k2, @m_large_value, :expiry => 0, :raw => true
         c.set @k3, @m_large_value, :expiry => 0, :raw => true
+      elsif c.class == Memcache::NativeServer
+        c.set @k1, @m_large_value, 0
+        c.set @k2, @m_large_value, 0
+        c.set @k3, @m_large_value, 0
       else
         c.set @k1, @m_large_value, 0, true
         c.set @k2, @m_large_value, 0, true
@@ -190,42 +199,47 @@ private
     end
 
     benchmark_clients("get-large") do |c|
-      c.get @k1, true
-      c.get @k2, true
-      c.get @k3, true
+      if c.class == Memcache
+        c.get @k1, :raw => true
+        c.get @k2, :raw => true
+        c.get @k3, :raw => true
+      elsif c.class == Memcache::NativeServer
+        c.get @k1
+        c.get @k2
+        c.get @k3
+      else
+        c.get @k1, true
+        c.get @k2, true
+        c.get @k3, true
+      end
     end
 
     benchmark_clients("set-ruby") do |c|
+      raise InvalidTest if c.class == Memcache::NativeServer
       c.set @k1, @value
       c.set @k2, @value
       c.set @k3, @value
     end
 
     benchmark_clients("get-ruby") do |c|
+      raise InvalidTest if c.class == Memcache::NativeServer
       c.get @k1
       c.get @k2
       c.get @k3
     end
 
     benchmark_clients("set-ruby-large") do |c|
+      raise InvalidTest if c.class == Memcache::NativeServer
       c.set @k1, @large_value
       c.set @k2, @large_value
       c.set @k3, @large_value
     end
 
     benchmark_clients("get-ruby-large") do |c|
+      raise InvalidTest if c.class == Memcache::NativeServer
       c.get @k1
       c.get @k2
       c.get @k3
-    end
-
-    benchmark_hashes(Memcached::HASH_VALUES, "hash") do |i|
-      Rlibmemcached.memcached_generate_hash_rvalue(@k1, i)
-      Rlibmemcached.memcached_generate_hash_rvalue(@k2, i)
-      Rlibmemcached.memcached_generate_hash_rvalue(@k3, i)
-      Rlibmemcached.memcached_generate_hash_rvalue(@k4, i)
-      Rlibmemcached.memcached_generate_hash_rvalue(@k5, i)
-      Rlibmemcached.memcached_generate_hash_rvalue(@k6, i)
     end
   end
 end

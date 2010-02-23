@@ -41,6 +41,10 @@ task :test => :check_dependencies
 
 task :default => :test
 
+task :clean do
+  `rm -rf ext/lib ext/bin ext/share ext/include`
+end
+
 require 'rake/rdoctask'
 Rake::RDocTask.new do |rdoc|
   if File.exist?('VERSION')
@@ -57,7 +61,7 @@ end
 
 namespace :test do
   Rake::TestTask.new(:native) do |t|
-    `cd ext && make && cp native_server.bundle ../lib/memcache/`
+    `cd ext && make && cp native_server.bundle ../lib/`
     t.libs << 'test'
     t.pattern = 'test/memcache_native_server_test.rb'
     t.verbose
