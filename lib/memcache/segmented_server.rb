@@ -1,15 +1,20 @@
 require 'digest/sha1'
 
 class Memcache
-  class SegmentedServer < Server
+  class SegmentedServer
     MAX_SIZE = 1000000 # bytes
     PARTIAL_VALUE = 0x40000000
-    
+
+    attr_reader :server
+    def initialize(server)
+      @server = server
+    end
+
     def get(keys, cas = nil)
       return get([keys], cas)[keys.to_s] unless keys.kind_of?(Array)
       return {} if keys.empty?
 
-      results = super
+      results = server.get(keys, cas)
       keys = {}
       keys_to_fetch = []
       results.each do |key, value|
@@ -19,14 +24,14 @@ class Memcache
         num.to_i.times do |i|
           hash_key = "#{hash}:#{i}"
           keys_to_fetch << hash_key
-          keys[key]     << hash_key 
+          keys[key]     << hash_key
         end
       end
-      
-      parts = super(keys_to_fetch)
+
+      parts = server.get(keys_to_fetch)
       keys.each do |key, hashes|
         value = ''
-        hashes.each do |hash_key|          
+        hashes.each do |hash_key|
           if part = parts[hash_key]
             value << part
           else
@@ -46,22 +51,26 @@ class Memcache
 
     def set(key, value, expiry = 0, flags = 0)
       value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, expiry, flags) && value
+      server.set(key, value, expiry, flags) && value
     end
 
     def cas(key, value, cas, expiry = 0, flags = 0)
       value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, cas, expiry, flags)
+      server.cas(key, value, cas, expiry, flags)
     end
 
     def add(key, value, expiry = 0, flags = 0)
       value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, expiry, flags)
+      server.add(key, value, expiry, flags)
     end
 
     def replace(key, value, expiry = 0, flags = 0)
       value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, expiry, flags)
+      server.replace(key, value, expiry, flags)
+    end
+
+    def method_missing(method_name, *args)
+      server.send(method_name, *args)
     end
 
   private
@@ -81,13 +90,13 @@ class Memcache
       master_key = "#{hash}:#{parts.size}"
       [master_key, parts]
     end
-    
+
     def store_segments(key, value, expiry = 0, flags = 0)
       if value and value.size > MAX_SIZE
         master_key, parts = segment(key, value)
         expiry += 1 unless expiry == 0 # We want the segments to expire slightly after the master key.
         parts.each do |hash, data|
-          set(hash, data, expiry)
+          server.set(hash, data, expiry)
         end
         [master_key, flags | PARTIAL_VALUE]
       else
