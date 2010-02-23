@@ -54,3 +54,13 @@ Rake::RDocTask.new do |rdoc|
   rdoc.rdoc_files.include('README*')
   rdoc.rdoc_files.include('lib/**/*.rb')
 end
+
+namespace :test do
+  Rake::TestTask.new(:native) do |t|
+    `cd ext && make && cp native_server.bundle ../lib/memcache/`
+    t.libs << 'test'
+    t.pattern = 'test/memcache_native_server_test.rb'
+    t.verbose
+  end
+end
+  

@@ -108,13 +108,13 @@ class Memcache
     def incr(key, amount = 1)
       raise Error, "incr requires unsigned value" if amount < 0
       response = write_command("incr #{key} #{amount}")
-      response == "NOT_FOUND\r\n" ? nil : response.slice(0..-3)
+      response == "NOT_FOUND\r\n" ? nil : response.slice(0..-3).to_i
     end
 
     def decr(key, amount = 1)
       raise Error, "decr requires unsigned value" if amount < 0
       response = write_command("decr #{key} #{amount}")
-      response == "NOT_FOUND\r\n" ? nil : response.slice(0..-3)
+      response == "NOT_FOUND\r\n" ? nil : response.slice(0..-3).to_i
     end
 
     def delete(key)
@@ -151,20 +151,6 @@ class Memcache
       response = write_command("prepend #{key} 0 0 #{value.to_s.size}", value)
       response == "STORED\r\n"
     end
-
-    class Error < StandardError; end
-    class ConnectionError < Error
-      def initialize(e)
-        if e.kind_of?(String)
-          super
-        else
-          super("(#{e.class}) #{e.message}")
-          set_backtrace(e.backtrace)
-        end
-      end
-    end
-    class ServerError < Error; end
-    class ClientError < Error; end
 
   private
 

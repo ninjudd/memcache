@@ -1,1 +1,6 @@
 pkg
+*.bundle
+*.so
+*.o
+Makefile
+mkmf.log

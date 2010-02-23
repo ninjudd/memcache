@@ -4,6 +4,7 @@ $:.unshift(File.dirname(__FILE__))
 require 'memcache/server'
 require 'memcache/local_server'
 require 'memcache/segmented_server'
+require 'memcache/native_server'
 
 class Memcache
   DEFAULT_EXPIRY  = 0
@@ -11,6 +12,20 @@ class Memcache
   WRITE_LOCK_WAIT = 1
 
   attr_reader :default_expiry, :default_namespace, :servers, :backup
+
+  class Error < StandardError; end
+  class ConnectionError < Error
+    def initialize(e)
+      if e.kind_of?(String)
+        super
+      else
+        super("(#{e.class}) #{e.message}")
+        set_backtrace(e.backtrace)
+      end
+    end
+  end
+  class ServerError < Error; end
+  class ClientError < Error; end
 
   def initialize(opts)
     @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
