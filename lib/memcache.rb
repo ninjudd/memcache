@@ -10,39 +10,26 @@ class Memcache
   LOCK_TIMEOUT    = 5
   WRITE_LOCK_WAIT = 1
 
-  attr_reader :default_expiry, :default_namespace, :servers, :backup
+  attr_reader :default_expiry, :default_namespace, :servers
 
   def initialize(opts)
     @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
     @default_namespace = opts[:namespace]
+    default_server = opts[:segment_large_values] ? SegmentedServer : Server
 
-    new_server = lambda do |server, *args|
-      server = server.new(*args)
-      opts[:segment_large_values] ? SegmentedServer.new(server) : server
-    end
-
-    @backup = opts[:backup] # for multi-level caches
-
-    if opts[:native]
-      servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
-        server.is_a?(Hash) ? "#{server[:host]}:#{server[:port]}" : server
+    @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
+      case server
+      when Hash
+        server = default_server.new(opts.merge(server))
+      when String
+        host, port = server.split(':')
+        server = default_server.new(opts.merge(:host => host, :port => port))
+      when Class
+        server = server.new
+      when :local
+        server = Memcache::LocalServer.new
       end
-      @servers = [new_server.call(NativeServer, :servers => servers)]
-    else
-      @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
-        case server
-        when Hash
-          server = new_server.call(Server, opts.merge(server))
-        when String
-          host, port = server.split(':')
-          server = new_server.call(Server, opts.merge(:host => host, :port => port))
-        when Class
-          server = server.new
-        when :local
-          server = Memcache::LocalServer.new
-        end
-        server
-      end
+      server
     end
   end
 
@@ -91,12 +78,10 @@ class Memcache
 
       if opts[:expiry]
         value = server(key).gets(key)
-        cas(key, value, :raw => true, :cas => value.memcache_cas, :expiry => opts[:expiry]) if value
+        server(key).cas(key, value, value.memcache_cas, opts[:expiry]) if value
       else
         value = server(key).get(key, opts[:cas])
       end
-      return backup.get(keys, opts) if backup and value.nil?
-
       opts[:raw] ? value : unmarshal(value, key)
     end
   end
@@ -107,7 +92,6 @@ class Memcache
 
   def set(key, value, opts = {})
     opts = compatible_opts(opts)
-    backup.set(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
@@ -123,7 +107,6 @@ class Memcache
 
   def add(key, value, opts = {})
     opts = compatible_opts(opts)
-    backup.add(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
@@ -134,7 +117,6 @@ class Memcache
 
   def replace(key, value, opts = {})
     opts = compatible_opts(opts)
-    backup.replace(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
@@ -145,7 +127,6 @@ class Memcache
 
   def cas(key, value, opts = {})
     raise 'opts must be hash' unless opts.kind_of?(Hash)
-    backup.cas(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
@@ -155,33 +136,26 @@ class Memcache
   end
 
   def append(key, value)
-    backup.append(key, value) if backup
-
     key = cache_key(key)
     server(key).append(key, value)
   end
 
   def prepend(key, value)
-    backup.prepend(key, value) if backup
-
     key = cache_key(key)
     server(key).prepend(key, value)
   end
 
   def count(key)
-    get(key, :raw => true).to_i
+    key = cache_key(key)
+    server(key).get(key).to_i
   end
 
   def incr(key, amount = 1)
-    backup.incr(key, amount) if backup
-
     key = cache_key(key)
     server(key).incr(key, amount)
   end
 
   def decr(key, amount = 1)
-    backup.decr(key, amount) if backup
-
     key = cache_key(key)
     server(key).decr(key, amount)
   end
@@ -265,8 +239,6 @@ class Memcache
   end
 
   def delete(key)
-    backup.delete(key) if backup
-
     key = cache_key(key)
     server(key).delete(key)
   end
@@ -298,7 +270,7 @@ class Memcache
       stats
     end
   end
-
+ 
   alias clear flush_all
 
   def [](key)
@@ -340,10 +312,10 @@ protected
 
   def multi_get(keys, opts = {})
     return {} if keys.empty?
-
+    
     key_to_input_key = {}
     keys_by_server  = Hash.new { |h,k| h[k] = [] }
-
+    
     # Store keys by servers. Also store a mapping from cache key to input key.
     keys.each do |input_key|
       key    = cache_key(input_key)
@@ -351,36 +323,34 @@ protected
       key_to_input_key[key] = input_key.to_s
       keys_by_server[server] << key
     end
-
+    
     # Fetch and combine the results. Also, map the cache keys back to the input keys.
     results = {}
-    keys_by_server.each do |server, server_keys|
-      server.get(server_keys, opts[:cas]).each do |key, value|
+    keys_by_server.each do |server, keys|
+      server.get(keys, opts[:cas]).each do |key, value|
         input_key = key_to_input_key[key]
         results[input_key] = opts[:raw] ? value : unmarshal(value, key)
       end
-    end
-
-    if backup
-      missing_keys = keys - results.keys
-      results.merge!(backup.get(missing_keys, opts)) if missing_keys.any?
     end
     results
   end
 
   def cache_key(key)
     safe_key = key ? key.to_s.gsub(/%/, '%%').gsub(/ /, '%s') : key
-    return safe_key if namespace.nil?
-    "#{namespace}:#{safe_key}"
+    if namespace.nil? then
+      safe_key
+    else
+      "#{namespace}:#{safe_key}"
+    end
   end
-
+  
   def marshal(value, opts = {})
     opts[:raw] ? value : Marshal.dump(value)
   end
 
   def unmarshal(value, key = nil)
     return value if value.nil?
-
+    
     object = Marshal.load(value)
     object.memcache_flags = value.memcache_flags
     object.memcache_cas   = value.memcache_cas
@@ -406,7 +376,7 @@ protected
       @cache_by_scope[:default] = Memcache.new(:server => Memcache::LocalServer)
       @fallback = :default
     end
-
+    
     def include?(scope)
       @cache_by_scope.include?(scope.to_sym)
     end
@@ -418,7 +388,7 @@ protected
     def [](scope)
       @cache_by_scope[scope.to_sym] || @cache_by_scope[fallback]
     end
-
+    
     def []=(scope, cache)
       @cache_by_scope[scope.to_sym] = cache
     end
@@ -427,7 +397,7 @@ protected
       @cache_by_scope.values.each {|c| c.reset}
     end
   end
-
+  
   def self.pool
     @@cache_pool ||= Pool.new
   end
