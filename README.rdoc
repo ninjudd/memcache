@@ -80,8 +80,8 @@ changes:
    cache.add('foo', 0)
    cache.get('foo')
    => 1
-  
-   cache.replace('foo', 2) 
+
+   cache.replace('foo', 2)
    cache.get('foo')
    => 2
 
@@ -176,4 +176,4 @@ by attempting to connect.
 
 == License:
 
-Copyright (c) 2009 Justin Balthrop, Geni.com; Published under The MIT License, see LICENSE
+Copyright (c) 2010 Justin Balthrop, Geni.com; Published under The MIT License, see LICENSE
