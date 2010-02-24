@@ -12,9 +12,8 @@ class MemcacheSegmentedServerTest < Test::Unit::TestCase
   def setup
     start_memcache(PORT)
     @memcache = Memcache::SegmentedServer.new(:host => 'localhost', :port => PORT)
-
   end
-  
+
   def teardown
     stop_memcache(PORT)
   end

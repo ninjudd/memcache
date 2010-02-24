@@ -31,26 +31,23 @@ class Memcache
     @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
     @default_namespace = opts[:namespace]
 
-    new_server = lambda do |server, *args|
-      server = server.new(*args)
-      opts[:segment_large_values] ? SegmentedServer.new(server) : server
-    end
-
     @backup = opts[:backup] # for multi-level caches
 
     if opts[:native]
       servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
         server.is_a?(Hash) ? "#{server[:host]}:#{server[:port]}" : server
       end
-      @servers = [new_server.call(NativeServer, :servers => servers)]
+      server_class = opts[:segment_large_values] ? SegmentedNativeServer : NativeServer
+      @servers = [server_class.new(:servers => servers)]
     else
+      server_class = opts[:segment_large_values] ? SegmentedServer : Server
       @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
         case server
         when Hash
-          server = new_server.call(Server, opts.merge(server))
+          server = server_class.new(opts.merge(server))
         when String
           host, port = server.split(':')
-          server = new_server.call(Server, opts.merge(:host => host, :port => port))
+          server = server_class.new(opts.merge(:host => host, :port => port))
         when Class
           server = server.new
         when :local
@@ -191,7 +188,7 @@ class Memcache
     backup.incr(key, amount) if backup
 
     key = cache_key(key)
-    server(key).incr(key, amount)
+   server(key).incr(key, amount)
   end
 
   def decr(key, amount = 1)
