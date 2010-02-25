@@ -9,6 +9,7 @@ class Memcache
     DEFAULT_PORT     = 11211
 
     attr_reader :host, :port, :status, :retry_at
+    attr_accessor :prefix
 
     def initialize(opts)
       @host         = opts[:host]
@@ -88,6 +89,8 @@ class Memcache
       method = cas ? 'gets' : 'get'
 
       results = {}
+      keys = keys.collect {|key| "#{prefix}#{key}"} if prefix
+
       read_command("#{method} #{keys.join(' ')}") do |response|
         if cas
           key, flags, length, cas = match_response!(response, /^VALUE ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)/)
@@ -100,6 +103,8 @@ class Memcache
 
         value.memcache_flags = flags.to_i
         value.memcache_cas   = cas
+
+        key = key.slice(prefix.size..-1) if prefix # Remove prefix from key.
         results[key] = value
       end
       results
@@ -107,48 +112,48 @@ class Memcache
 
     def incr(key, amount = 1)
       raise Error, "incr requires unsigned value" if amount < 0
-      response = write_command("incr #{key} #{amount}")
+      response = write_command("incr #{prefix}#{key} #{amount}")
       response == "NOT_FOUND\r\n" ? nil : response.slice(0..-3).to_i
     end
 
     def decr(key, amount = 1)
       raise Error, "decr requires unsigned value" if amount < 0
-      response = write_command("decr #{key} #{amount}")
+      response = write_command("decr #{prefix}#{key} #{amount}")
       response == "NOT_FOUND\r\n" ? nil : response.slice(0..-3).to_i
     end
 
     def delete(key)
-      write_command("delete #{key}") == "DELETED\r\n" ? true : nil
+      write_command("delete #{prefix}#{key}") == "DELETED\r\n" ? true : nil
     end
 
     def set(key, value, expiry = 0, flags = 0)
       return delete(key) if value.nil?
-      write_command("set #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
+      write_command("set #{prefix}#{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       value
     end
 
     def cas(key, value, cas, expiry = 0, flags = 0)
-      response = write_command("cas #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size} #{cas.to_i}", value)
+      response = write_command("cas #{prefix}#{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size} #{cas.to_i}", value)
       response == "STORED\r\n" ? value : nil
     end
 
     def add(key, value, expiry = 0, flags = 0)
-      response = write_command("add #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
+      response = write_command("add #{prefix}#{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 
     def replace(key, value, expiry = 0, flags = 0)
-      response = write_command("replace #{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
+      response = write_command("replace #{prefix}#{key} #{flags.to_i} #{expiry.to_i} #{value.to_s.size}", value)
       response == "STORED\r\n" ? value : nil
     end
 
     def append(key, value)
-      response = write_command("append #{key} 0 0 #{value.to_s.size}", value)
+      response = write_command("append #{prefix}#{key} 0 0 #{value.to_s.size}", value)
       response == "STORED\r\n"
     end
 
     def prepend(key, value)
-      response = write_command("prepend #{key} 0 0 #{value.to_s.size}", value)
+      response = write_command("prepend #{prefix}#{key} 0 0 #{value.to_s.size}", value)
       response == "STORED\r\n"
     end
 

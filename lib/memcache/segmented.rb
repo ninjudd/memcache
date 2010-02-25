@@ -5,6 +5,10 @@ class Memcache
     MAX_SIZE = 1000000 # bytes
     PARTIAL_VALUE = 0x40000000
 
+    def gets(keys)
+      get(keys, true)
+    end
+
     def get(keys, cas = nil)
       return get([keys], cas)[keys.to_s] unless keys.kind_of?(Array)
       return {} if keys.empty?
@@ -45,23 +49,23 @@ class Memcache
     end
 
     def set(key, value, expiry = 0, flags = 0)
-      value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, expiry, flags) && value
+      hash, flags = store_segments(key, value, expiry, flags)
+      super(key, hash, expiry, flags) && value
     end
 
     def cas(key, value, cas, expiry = 0, flags = 0)
-      value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, cas, expiry, flags)
+      hash, flags = store_segments(key, value, expiry, flags)
+      super(key, hash, cas, expiry, flags) && value
     end
 
     def add(key, value, expiry = 0, flags = 0)
-      value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, expiry, flags)
+      hash, flags = store_segments(key, value, expiry, flags)
+      super(key, hash, expiry, flags) && value
     end
 
     def replace(key, value, expiry = 0, flags = 0)
-      value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, expiry, flags)
+      hash, flags = store_segments(key, value, expiry, flags)
+      super(key, hash, expiry, flags) && value
     end
 
   private

@@ -1,5 +1,7 @@
 class Memcache
   class LocalServer
+    attr_accessor :prefix
+
     def initialize
       @data = {}
       @expiry = {}
@@ -36,7 +38,7 @@ class Memcache
         end
         hash
       else
-        key = keys.to_s
+        key = cache_key(keys)
         if @expiry[key] and Time.now > @expiry[key]
           @data[key]   = nil
           @expiry[key] = nil
@@ -45,15 +47,26 @@ class Memcache
       end
     end
 
+    def set(key, value, expiry = 0, flags = 0)
+      key = cache_key(key)
+      @data[key] = value.to_s
+      if expiry.kind_of?(Time)
+        @expiry[key] = expiry
+      else
+        expiry = expiry.to_i
+        @expiry[key] = expiry == 0 ? nil : Time.now + expiry
+      end
+      value
+    end
+
     def incr(key, amount = 1)
-      key = key.to_s
       value = get(key)
       return unless value
       return unless value =~ /^\d+$/
 
       value = value.to_i + amount
       value = 0 if value < 0
-      @data[key] = value.to_s
+      set(key, value.to_s)
       value
     end
 
@@ -62,19 +75,7 @@ class Memcache
     end
 
     def delete(key)
-      @data.delete(key.to_s)
-    end
-
-    def set(key, value, expiry = 0, flags = 0)
-      key = key.to_s
-      @data[key] = value.to_s
-      if expiry.kind_of?(Time)
-        @expiry[key] = expiry
-      else  
-        expiry = expiry.to_i
-        @expiry[key] = expiry == 0 ? nil : Time.now + expiry
-      end
-      value
+      @data.delete(cache_key(key)) && true
     end
 
     def cas(key, value, cas, expiry = 0, flags = 0)
@@ -94,14 +95,20 @@ class Memcache
 
     def append(key, value)
       existing = get(key)
-      return nil if existing.nil?
-      set(key, existing + value)
+      return false if existing.nil?
+      set(key, existing + value) && true
     end
 
     def prepend(key, value)
       existing = get(key)
-      return nil if existing.nil?
-      set(key, value + existing)
+      return false if existing.nil?
+      set(key, value + existing) && true
+    end
+
+  private
+
+    def cache_key(key)
+      "#{prefix}#{key}"
     end
   end
 end

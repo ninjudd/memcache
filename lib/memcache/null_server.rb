@@ -1,5 +1,7 @@
 class Memcache
   class NullServer
+    attr_accessor :prefix
+
     def name
       "null"
     end

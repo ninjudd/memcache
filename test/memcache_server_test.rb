@@ -4,15 +4,13 @@ require File.dirname(__FILE__) + '/memcache_server_test_helper'
 class MemcacheServerTest < Test::Unit::TestCase
   include MemcacheServerTestHelper
   include MemcacheServerTestHelper::AdvancedMethods
-  PORT = 11212
+  with_prefixes nil, "foo:", "bar:"
 
+  PORT = 11212
   def setup
-    start_memcache(PORT)
-    @memcache = Memcache::Server.new(:host => 'localhost', :port => PORT)
-  end
-  
-  def teardown
-    stop_memcache(PORT)
+    init_memcache(PORT) do
+      Memcache::Server.new(:host => 'localhost', :port => PORT)
+    end
   end
 
   def test_stats
@@ -21,11 +19,11 @@ class MemcacheServerTest < Test::Unit::TestCase
     m.get('bar')
 
     stats = m.stats
-    assert_equal 2, stats['cmd_get'] 
-    assert_equal 1, stats['cmd_set']
-    assert_equal 1, stats['curr_items']
+    assert stats['cmd_get'] > 0
+    assert stats['cmd_set'] > 0
+    assert stats['curr_items'] > 0
   end
-  
+
   def test_clone
     m.set('foo', 1)
     c = m.clone
