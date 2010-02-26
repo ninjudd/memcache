@@ -2,6 +2,7 @@
 #include <libmemcached/memcached.h>
 
 VALUE cMemcache;
+VALUE cMemcacheBase;
 VALUE cNativeServer;
 VALUE cMemcacheError;
 VALUE cMemcacheServerError;
@@ -128,13 +129,6 @@ static VALUE ns_get(int argc, VALUE *argv, VALUE self) {
   } else {
     return results;
   }
-}
-
-VALUE ns_gets(VALUE self, VALUE keys) {
-  VALUE argv[2];
-  argv[0] = keys;
-  argv[1] = T_TRUE;
-  return ns_get(2, argv, self);
 }
 
 VALUE ns_set(int argc, VALUE *argv, VALUE self) {
@@ -387,12 +381,12 @@ void Init_native_server() {
   cMemcacheClientError     = rb_define_class_under(cMemcache, "ClientError",     cMemcacheError);
   cMemcacheConnectionError = rb_define_class_under(cMemcache, "ConnectionError", cMemcacheError);
 
-  cNativeServer = rb_define_class_under(cMemcache, "NativeServer", rb_cObject);
+  cMemcacheBase = rb_define_class_under(cMemcache, "Base", rb_cObject);
+  cNativeServer = rb_define_class_under(cMemcache, "NativeServer", cMemcacheBase);
   rb_define_alloc_func(cNativeServer, ns_alloc);
   rb_define_method(cNativeServer, "initialize", ns_initialize, 1);
 
   rb_define_method(cNativeServer, "get",       ns_get,       -1);
-  rb_define_method(cNativeServer, "gets",      ns_gets,       1);
   rb_define_method(cNativeServer, "set",       ns_set,       -1);
   rb_define_method(cNativeServer, "add",       ns_add,       -1);
   rb_define_method(cNativeServer, "cas",       ns_cas,       -1);

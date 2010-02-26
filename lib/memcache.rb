@@ -1,6 +1,7 @@
 require 'zlib'
 
 $:.unshift(File.dirname(__FILE__))
+require 'memcache/base'
 require 'memcache/server'
 require 'memcache/local_server'
 require 'memcache/native_server'
@@ -11,7 +12,7 @@ class Memcache
   LOCK_TIMEOUT    = 5
   WRITE_LOCK_WAIT = 1
 
-  attr_reader :default_expiry, :default_namespace, :servers, :backup
+  attr_reader :default_expiry, :namespace, :servers, :backup
 
   class Error < StandardError; end
   class ConnectionError < Error
@@ -28,10 +29,8 @@ class Memcache
   class ClientError < Error; end
 
   def initialize(opts)
-    @default_expiry    = opts[:default_expiry] || DEFAULT_EXPIRY
-    @default_namespace = opts[:namespace]
-
-    @backup = opts[:backup] # for multi-level caches
+    @default_expiry = opts[:default_expiry] || DEFAULT_EXPIRY
+    @backup         = opts[:backup] # for multi-level caches
 
     if opts[:native]
       servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
@@ -56,13 +55,15 @@ class Memcache
         server
       end
     end
+
+    self.namespace = opts[:namespace] if opts[:namespace]
   end
 
   def clone
     self.class.new(
-      :default_expiry    => default_expiry,
-      :default_namespace => default_namespace,
-      :servers           => servers.collect {|s| s.clone}
+      :default_expiry => default_expiry,
+      :namespace      => namespace,
+      :servers        => servers.collect {|s| s.clone}
     )
   end
 
@@ -70,23 +71,21 @@ class Memcache
     "<Memcache: %d servers, ns: %p>" % [@servers.length, namespace]
   end
 
-  def namespace
-    @namespace || default_namespace
-  end
-
   def namespace=(namespace)
-    if default_namespace == namespace
-      @namespace = nil
-    else
-      @namespace = namespace
+    @namespace = namespace
+    prefix = "#{namespace}:"
+    servers.each do |server|
+      server.prefix = prefix
     end
+    backup.namespace = @namespace if backup
+    @namespace
   end
 
   def in_namespace(namespace)
     # Temporarily change the namespace for convenience.
     begin
-      old_namespace = self.namespace
-      self.namespace = "#{old_namespace}#{namespace}"
+      old_namespace  = self.namespace
+      self.namespace = "#{old_namespace}:#{namespace}"
       yield
     ensure
       self.namespace = old_namespace
@@ -99,8 +98,7 @@ class Memcache
     if keys.kind_of?(Array)
       multi_get(keys, opts)
     else
-      key = cache_key(keys)
-
+      key = keys
       if opts[:expiry]
         value = server(key).gets(key)
         cas(key, value, :raw => true, :cas => value.memcache_cas, :expiry => opts[:expiry]) if value
@@ -123,7 +121,6 @@ class Memcache
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
-    key    = cache_key(key)
     data   = marshal(value, opts)
     server(key).set(key, data, expiry, flags)
     value
@@ -139,7 +136,6 @@ class Memcache
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
-    key    = cache_key(key)
     data   = marshal(value, opts)
     server(key).add(key, data, expiry, flags) && value
   end
@@ -150,7 +146,6 @@ class Memcache
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
-    key    = cache_key(key)
     data   = marshal(value, opts)
     server(key).replace(key, data, expiry, flags) && value
   end
@@ -161,22 +156,17 @@ class Memcache
 
     expiry = opts[:expiry] || default_expiry
     flags  = opts[:flags]  || 0
-    key    = cache_key(key)
     data   = marshal(value, opts)
     server(key).cas(key, data, opts[:cas], expiry, flags) && value
   end
 
   def append(key, value)
     backup.append(key, value) if backup
-
-    key = cache_key(key)
     server(key).append(key, value)
   end
 
   def prepend(key, value)
     backup.prepend(key, value) if backup
-
-    key = cache_key(key)
     server(key).prepend(key, value)
   end
 
@@ -186,15 +176,11 @@ class Memcache
 
   def incr(key, amount = 1)
     backup.incr(key, amount) if backup
-
-    key = cache_key(key)
-   server(key).incr(key, amount)
+    server(key).incr(key, amount)
   end
 
   def decr(key, amount = 1)
     backup.decr(key, amount) if backup
-
-    key = cache_key(key)
     server(key).decr(key, amount)
   end
 
@@ -278,8 +264,6 @@ class Memcache
 
   def delete(key)
     backup.delete(key) if backup
-
-    key = cache_key(key)
     server(key).delete(key)
   end
 

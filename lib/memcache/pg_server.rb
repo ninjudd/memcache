@@ -1,8 +1,14 @@
 require 'active_record'
 require 'memcache/migration'
 
+class PGconn
+  def self.quote_ident(name)
+    %("#{name}")
+  end
+end
+
 class Memcache
-  class PGServer
+  class PGServer < Base
     attr_reader :db, :table
 
     def initialize(opts)
@@ -23,6 +29,7 @@ class Memcache
 
     def get(keys)
       return get([keys])[keys.to_s] unless keys.kind_of?(Array)
+      return {} if keys.empty?
 
       keys = keys.collect {|key| quote(key.to_s)}.join(',')
       sql = %{
@@ -39,9 +46,9 @@ class Memcache
     def incr(key, amount = 1)
       transaction do
         value = get(key)
-        return unless value        
+        return unless value
         return unless value =~ /^\d+$/
-        
+
         value = value.to_i + amount
         value = 0 if value < 0
         db.exec %{
@@ -61,6 +68,7 @@ class Memcache
         DELETE FROM #{table}
           WHERE key = #{quote(key)}
       }
+      result.cmdtuples == 1
     end
 
     def set(key, value, expiry = 0)
@@ -79,13 +87,13 @@ class Memcache
       nil
     end
 
-    def replace(key, value, expiry = 0)      
+    def replace(key, value, expiry = 0)
       delete_expired(key)
       result = update(key, value, expiry)
       result.cmdtuples == 1 ? value : nil
     end
 
-    def append(key, value)      
+    def append(key, value)
       delete_expired(key)
       result = db.exec %{
         UPDATE #{table}
@@ -95,7 +103,7 @@ class Memcache
       result.cmdtuples == 1
     end
 
-    def prepend(key, value)      
+    def prepend(key, value)
       delete_expired(key)
       result = db.exec %{
         UPDATE #{table}
@@ -106,7 +114,7 @@ class Memcache
     end
 
   private
- 
+
     def insert(key, value, expiry = 0)
       db.exec %{
         INSERT INTO #{table} (key, value, updated_at, expires_at)
@@ -124,8 +132,8 @@ class Memcache
 
     def transaction
       return yield if @in_transaction
-      
-      begin 
+
+      begin
         @in_transaction = true
         db.exec('BEGIN')
         value = yield
@@ -138,7 +146,7 @@ class Memcache
         @in_transaction = false
       end
     end
-      
+
     def quote(string)
       string.to_s.gsub(/'/,"\'")
       "'#{string}'"
@@ -147,7 +155,7 @@ class Memcache
     def delete_expired(key)
       db.exec "DELETE FROM #{table} WHERE key = #{quote(key)} AND NOT (#{expiry_clause})"
     end
-    
+
     def expiry_clause
       "expires_at IS NULL OR expires_at > NOW()"
     end

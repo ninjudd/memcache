@@ -3,21 +3,13 @@ require File.dirname(__FILE__) + '/test_helper'
 
 class MemcacheTest < Test::Unit::TestCase
   PORTS = [11212, 11213, 11214, 11215, 11216, 11217]
-
-  def m
-    @memcache
-  end
-
   def setup
-    start_memcache(*PORTS)
-    @memcache = Memcache.new(:servers => PORTS.collect {|p| "localhost:#{p}"})
-  end
-    
-  def teardown
-    stop_memcache(*PORTS)
+    init_memcache(*PORTS) do
+      Memcache.new(:servers => PORTS.collect {|p| "localhost:#{p}"})
+    end
   end
 
-  def test_get_and_set    
+  def test_get_and_set
     100.times do |i|
       m.set(i.to_s, i)
       assert_equal i, m.get(i.to_s)
@@ -29,7 +21,7 @@ class MemcacheTest < Test::Unit::TestCase
     results.each do |key, value|
       assert_equal key.to_i, value
     end
-    
+
     100.times do |i|
       m.set(i.to_s, i.to_s, :raw => true)
       assert_equal i.to_s, m.get(i.to_s, :raw => true)
@@ -68,7 +60,7 @@ class MemcacheTest < Test::Unit::TestCase
       assert_equal nil, m.get(i.to_s, :raw => true)
 
       m.add(i.to_s, 'homerun', :raw => true)
-      assert_equal 'homerun', m.get(i.to_s, :raw => true)      
+      assert_equal 'homerun', m.get(i.to_s, :raw => true)
     end
   end
 
@@ -92,7 +84,7 @@ class MemcacheTest < Test::Unit::TestCase
       assert_equal [i, :foo], m["foo#{i}"]
 
       m.get_or_set("foo#{i}") {raise}
-      assert_equal [i, :foo], m["foo#{i}"]    
+      assert_equal [i, :foo], m["foo#{i}"]
 
       # Overwrite if changed.
       m.get_or_set("bar#{i}") do
@@ -109,7 +101,7 @@ class MemcacheTest < Test::Unit::TestCase
       assert_equal [:foo, i], m["foo#{i}"]
 
       m.get_or_add("foo#{i}") {raise}
-      assert_equal [:foo, i], m["foo#{i}"]    
+      assert_equal [:foo, i], m["foo#{i}"]
 
       # Don't overwrite if changed.
       m.get_or_add("bar#{i}") do
@@ -160,7 +152,7 @@ class MemcacheTest < Test::Unit::TestCase
   def test_get_with_reset_expiry
     m.add('foo', 'quick brown fox', :expiry => 1)
     assert_equal 'quick brown fox', m.get('foo', :expiry => 2)
-    sleep(1)    
+    sleep(1)
     assert_equal 'quick brown fox', m.get('foo')
   end
 

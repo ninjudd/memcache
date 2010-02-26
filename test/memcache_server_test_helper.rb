@@ -1,10 +1,6 @@
 require File.dirname(__FILE__) + '/test_helper'
 
 module MemcacheServerTestHelper
-  def m
-    @memcache
-  end
-
   def test_prefix
     assert_equal nil, m.prefix = nil
     assert_equal nil, m.prefix

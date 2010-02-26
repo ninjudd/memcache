@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Justin Balthrop"]
-  s.date = %q{2010-02-22}
+  s.date = %q{2010-02-24}
   s.description = %q{Ruby client for memcached supporting advanced protocol features and pluggable architecture.}
   s.email = %q{code@justinbalthrop.com}
   s.extensions = ["ext/extconf.rb"]
@@ -25,19 +25,21 @@ Gem::Specification.new do |s|
      "VERSION.yml",
      "bench/benchmark.rb",
      "ext/extconf.rb",
+     "ext/libmemcached-0.38.tar.gz",
      "ext/native_server.c",
      "lib/memcache.rb",
      "lib/memcache/local_server.rb",
      "lib/memcache/migration.rb",
      "lib/memcache/null_server.rb",
      "lib/memcache/pg_server.rb",
-     "lib/memcache/segmented_server.rb",
+     "lib/memcache/segmented.rb",
      "lib/memcache/server.rb",
      "memcache.gemspec",
      "test/memcache_local_server_test.rb",
      "test/memcache_native_server_test.rb",
      "test/memcache_null_server_test.rb",
      "test/memcache_pg_server_test.rb",
+     "test/memcache_segmented_native_server_test.rb",
      "test/memcache_segmented_server_test.rb",
      "test/memcache_server_test.rb",
      "test/memcache_server_test_helper.rb",
@@ -54,6 +56,7 @@ Gem::Specification.new do |s|
      "test/memcache_native_server_test.rb",
      "test/memcache_null_server_test.rb",
      "test/memcache_pg_server_test.rb",
+     "test/memcache_segmented_native_server_test.rb",
      "test/memcache_segmented_server_test.rb",
      "test/memcache_server_test.rb",
      "test/memcache_server_test_helper.rb",

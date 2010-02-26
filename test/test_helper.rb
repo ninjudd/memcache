@@ -18,6 +18,10 @@ class Test::Unit::TestCase
     @memcache.flush_all
   end
 
+  def m
+    @memcache
+  end
+
   def start_memcache(port)
     system("memcached -p #{port} -U 0 -d -P /tmp/memcached_#{port}.pid")
     sleep 1

@@ -5,10 +5,6 @@ class Memcache
     MAX_SIZE = 1000000 # bytes
     PARTIAL_VALUE = 0x40000000
 
-    def gets(keys)
-      get(keys, true)
-    end
-
     def get(keys, cas = nil)
       return get([keys], cas)[keys.to_s] unless keys.kind_of?(Array)
       return {} if keys.empty?
