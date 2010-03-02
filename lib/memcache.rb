@@ -29,16 +29,23 @@ class Memcache
   class ClientError < Error; end
 
   def initialize(opts)
-    @default_expiry = opts[:default_expiry] || DEFAULT_EXPIRY
-    @backup         = opts[:backup] # for multi-level caches
+    @default_expiry   = opts[:default_expiry] || DEFAULT_EXPIRY
+    @backup           = opts[:backup] # for multi-level caches
+    @hash_with_prefix = opts[:hash_with_prefix].nil? ? true : opts[:hash_with_prefix]
 
     if opts[:native]
-      servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
+      native_opts = {}
+      native_opts[:servers] = (opts[:servers] || [ opts[:server] ]).collect do |server|
         server.is_a?(Hash) ? "#{server[:host]}:#{server[:port]}" : server
       end
+      native_opts[:hash] = opts[:hash] || :crc
+      native_opts[:hash_with_prefix] = @hash_with_prefix
+
       server_class = opts[:segment_large_values] ? SegmentedNativeServer : NativeServer
-      @servers = [server_class.new(:servers => servers)]
+      @servers = [server_class.new(native_opts)]
     else
+      raise "only CRC hashing is supported unless :native => true" if opts[:hash] and opts[:hash] != :crc
+
       server_class = opts[:segment_large_values] ? SegmentedServer : Server
       @servers = (opts[:servers] || [ opts[:server] ]).collect do |server|
         case server
@@ -56,6 +63,7 @@ class Memcache
       end
     end
 
+    @server = @servers.first if @servers.size == 1 and @backup.nil?
     self.namespace = opts[:namespace] if opts[:namespace]
   end
 
@@ -93,9 +101,9 @@ class Memcache
   end
 
   def get(keys, opts = {})
-    raise 'opts must be hash' unless opts.kind_of?(Hash)
+    raise 'opts must be hash' unless opts.instance_of?(Hash)
 
-    if keys.kind_of?(Array)
+    if keys.instance_of?(Array)
       multi_get(keys, opts)
     else
       key = keys
@@ -105,8 +113,8 @@ class Memcache
       else
         value = server(key).get(key, opts[:cas])
       end
-      return backup.get(keys, opts) if backup and value.nil?
 
+      return backup.get(key, opts) if backup and value.nil?
       opts[:raw] ? value : unmarshal(value, key)
     end
   end
@@ -150,8 +158,8 @@ class Memcache
     server(key).replace(key, data, expiry, flags) && value
   end
 
-  def cas(key, value, opts = {})
-    raise 'opts must be hash' unless opts.kind_of?(Hash)
+  def cas(key, value, opts)
+    raise 'opts must be hash' unless opts.instance_of?(Hash)
     backup.cas(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
@@ -215,8 +223,6 @@ class Memcache
   end
 
   def get_some(keys, opts = {})
-    keys = keys.collect {|key| key.to_s}
-
     records = opts[:disable] ? {} : self.get(keys, opts)
     if opts[:validation]
       records.delete_if do |key, value|
@@ -298,11 +304,11 @@ class Memcache
   alias clear flush_all
 
   def [](key)
-    get(key)
+    get(key.to_s)
   end
 
   def []=(key, value)
-    set(key, value)
+    set(key.to_s, value)
   end
 
   def self.init(yaml_file = nil)
@@ -331,29 +337,32 @@ protected
 
   def compatible_opts(opts)
     # Support passing expiry instead of opts. This may be deprecated in the future.
-    opts.kind_of?(Hash) ? opts : {:expiry => opts}
+    opts.instance_of?(Hash) ? opts : {:expiry => opts}
   end
 
   def multi_get(keys, opts = {})
     return {} if keys.empty?
 
-    key_to_input_key = {}
-    keys_by_server  = Hash.new { |h,k| h[k] = [] }
-
-    # Store keys by servers. Also store a mapping from cache key to input key.
-    keys.each do |input_key|
-      key    = cache_key(input_key)
-      server = server(key)
-      key_to_input_key[key] = input_key.to_s
-      keys_by_server[server] << key
+    results = {}
+    fetch_results = lambda do |server, keys|
+      server.get(keys, opts[:cas]).each do |key, value|
+        results[key] = opts[:raw] ? value : unmarshal(value, key)
+      end
     end
 
-    # Fetch and combine the results. Also, map the cache keys back to the input keys.
-    results = {}
-    keys_by_server.each do |server, server_keys|
-      server.get(server_keys, opts[:cas]).each do |key, value|
-        input_key = key_to_input_key[key]
-        results[input_key] = opts[:raw] ? value : unmarshal(value, key)
+    if @server
+      fetch_results.call(@server, keys)
+    else
+      keys_by_server = Hash.new { |h,k| h[k] = [] }
+
+      # Store keys by servers.
+      keys.each do |key|
+        keys_by_server[server(key)] << key
+      end
+
+      # Fetch and combine the results.
+      keys_by_server.each do |server, server_keys|
+        fetch_results.call(server, server_keys)
       end
     end
 
@@ -362,12 +371,6 @@ protected
       results.merge!(backup.get(missing_keys, opts)) if missing_keys.any?
     end
     results
-  end
-
-  def cache_key(key)
-    safe_key = key ? key.to_s.gsub(/%/, '%%').gsub(/ /, '%s') : key
-    return safe_key if namespace.nil?
-    "#{namespace}:#{safe_key}"
   end
 
   def marshal(value, opts = {})
@@ -387,9 +390,9 @@ protected
   end
 
   def server(key)
-    raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
-    return servers.first if servers.length == 1
+    return @server if @server
 
+    key = "#{namespace}:#{key}" if @hash_with_prefix
     hash = (Zlib.crc32(key) >> 16) & 0x7fff
     servers[hash % servers.length]
   end

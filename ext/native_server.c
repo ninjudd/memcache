@@ -10,7 +10,21 @@ VALUE cMemcacheClientError;
 VALUE cMemcacheConnectionError;
 VALUE sym_host;
 VALUE sym_port;
+VALUE sym_prefix;
+VALUE sym_hash;
+VALUE sym_hash_with_prefix;
 VALUE sym_servers;
+
+ID id_default;
+ID id_md5;
+ID id_crc;
+ID id_fnv1_64;
+ID id_fnv1a_64;
+ID id_fnv1_32;
+ID id_fnv1a_32;
+ID id_jenkins;
+ID id_hsieh;
+ID id_murmur;
 
 static ID iv_memcache_flags, iv_memcache_cas;
 
@@ -50,19 +64,47 @@ VALUE throw_error(memcached_return_t *error) {
   return Qnil;
 }
 
+static memcached_hash_t hash_behavior(VALUE sym) {
+  ID id = SYM2ID(sym);
+
+  if (id == id_default  ) return MEMCACHED_HASH_DEFAULT;
+  if (id == id_md5      ) return MEMCACHED_HASH_MD5;
+  if (id == id_crc      ) return MEMCACHED_HASH_CRC;
+  if (id == id_fnv1_64  ) return MEMCACHED_HASH_FNV1_64;
+  if (id == id_fnv1a_64 ) return MEMCACHED_HASH_FNV1A_64;
+  if (id == id_fnv1_32  ) return MEMCACHED_HASH_FNV1_32;
+  if (id == id_fnv1a_32 ) return MEMCACHED_HASH_FNV1A_32;
+  if (id == id_jenkins  ) return MEMCACHED_HASH_JENKINS;
+  if (id == id_hsieh    ) return MEMCACHED_HASH_HSIEH;
+  if (id == id_murmur   ) return MEMCACHED_HASH_MURMUR;
+  rb_raise(cMemcacheError, "Invalid hash behavior");
+}
+
 static VALUE ns_initialize(VALUE self, VALUE opts) {
   memcached_st *mc;
-  VALUE hostv, portv, server_aryv;
+  VALUE hostv, portv, servers_aryv, prefixv, hashv;
   char* host;
   char* server;
+  char* hashkit;
   int   port, i;
 
   Data_Get_Struct(self, memcached_st, mc);
-  server_aryv = rb_hash_aref(opts, sym_servers);
+  hashv        = rb_hash_aref(opts, sym_hash);
+  prefixv      = rb_hash_aref(opts, sym_prefix);
+  servers_aryv = rb_hash_aref(opts, sym_servers);
 
-  if (!NIL_P(server_aryv)) {
-    for (i = 0; i < RARRAY(server_aryv)->len; i++) {
-      server    = StringValuePtr(RARRAY(server_aryv)->ptr[i]);
+  if (!NIL_P(hashv))
+    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_HASH, hash_behavior(hashv));
+
+  if (RTEST( rb_hash_aref(opts, sym_hash_with_prefix) ))
+    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_HASH_WITH_PREFIX_KEY, true);
+
+  if (!NIL_P(prefixv))
+    memcached_callback_set(mc, MEMCACHED_CALLBACK_PREFIX_KEY, STR2CSTR(prefixv));
+
+  if (!NIL_P(servers_aryv)) {
+    for (i = 0; i < RARRAY(servers_aryv)->len; i++) {
+      server    = StringValuePtr(RARRAY(servers_aryv)->ptr[i]);
       memcached_server_push(mc, memcached_servers_parse(server));
     }
   } else {
@@ -368,11 +410,26 @@ VALUE ns_get_prefix(VALUE self) {
 }
 
 void Init_native_server() {
-  sym_host    = ID2SYM(rb_intern("host"));
-  sym_port    = ID2SYM(rb_intern("port"));
-  sym_servers = ID2SYM(rb_intern("servers"));
+  sym_host             = ID2SYM(rb_intern("host"));
+  sym_port             = ID2SYM(rb_intern("port"));
+  sym_prefix           = ID2SYM(rb_intern("prefix"));
+  sym_hash             = ID2SYM(rb_intern("hash"));
+  sym_hash_with_prefix = ID2SYM(rb_intern("hash_with_prefix"));
+  sym_servers          = ID2SYM(rb_intern("servers"));
+
   iv_memcache_flags = rb_intern("@memcache_flags");
   iv_memcache_cas   = rb_intern("@memcache_cas");
+
+  id_default  = rb_intern("default");
+  id_md5      = rb_intern("md5");
+  id_crc      = rb_intern("crc");
+  id_fnv1_64  = rb_intern("fnv1_64");
+  id_fnv1a_64 = rb_intern("fnv1a_64");
+  id_fnv1_32  = rb_intern("fnv1_32");
+  id_fnv1a_32 = rb_intern("fnv1a_32");
+  id_jenkins  = rb_intern("jenkins");
+  id_hsieh    = rb_intern("hsieh");
+  id_murmur   = rb_intern("murmur");
 
   cMemcache = rb_define_class("Memcache", rb_cObject);
 

@@ -56,7 +56,9 @@ class Memcache
 
   protected
     def cache_key(key)
-      "#{prefix}#{key}"
+      key = "#{prefix}#{key}"
+      raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
+      key
     end
   end
 end
