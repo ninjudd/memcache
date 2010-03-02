@@ -40,6 +40,7 @@ class Memcache
       end
       native_opts[:hash] = opts[:hash] || :crc
       native_opts[:hash_with_prefix] = @hash_with_prefix
+      native_opts[:binary] = opts[:binary]
 
       server_class = opts[:segment_large_values] ? SegmentedNativeServer : NativeServer
       @servers = [server_class.new(native_opts)]

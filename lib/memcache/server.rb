@@ -82,7 +82,7 @@ class Memcache
       method = cas ? 'gets' : 'get'
 
       results = {}
-      keys = keys.collect {|key| cache_key(key)} if prefix
+      keys = keys.collect {|key| cache_key(key)}
 
       read_command("#{method} #{keys.join(' ')}") do |response|
         if cas
@@ -97,7 +97,7 @@ class Memcache
         value.memcache_flags = flags.to_i
         value.memcache_cas   = cas
 
-        key = key.slice(prefix.size..-1) if prefix # Remove prefix from key.
+        key = input_key(key)
         results[key] = value
       end
       results
@@ -148,6 +148,29 @@ class Memcache
     def prepend(key, value)
       response = write_command("prepend #{cache_key(key)} 0 0 #{value.to_s.size}", value)
       response == "STORED\r\n"
+    end
+
+  protected
+
+    ESCAPE = {
+      " "   => '\s',
+      "\t"  => '\t',
+      "\n"  => '\n',
+      "\v"  => '\v',
+      "\f"  => '\f',
+      "\\"  => '\\\\',
+    }
+    UNESCAPE = ESCAPE.invert
+
+    def input_key(key)
+      key = key[prefix.size..-1] if prefix # Remove prefix from key.
+      key = key.gsub(/\\./) {|c| UNESCAPE[c]}
+      key
+    end
+
+    def cache_key(key)
+      key = key.gsub(/[\s\\]/) {|c| ESCAPE[c]}
+      super(key)
     end
 
   private

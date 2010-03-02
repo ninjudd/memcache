@@ -110,6 +110,7 @@ native_nowrap = init_servers(10004,10005) {|s| Memcache::NativeServer.new(:serve
 b = MemcacheBench.new(:num_items => 5000, :n => 100_000, :key_length => 20, :val_length => 100)
 
 2.times do
+  ___
   b.bench( 'set:native-nowrap'      ) {|key, val| native_nowrap.set(key, val) }
   b.bench( 'get:native-nowrap'      ) {|key     | native_nowrap.get(key)      }
   b.bench( 'get:native-nowrap', 100 ) {|keys    | native_nowrap.get(keys)     }

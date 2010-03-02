@@ -1,5 +1,6 @@
 #include "ruby.h"
 #include <libmemcached/memcached.h>
+#include <ctype.h>
 
 VALUE cMemcache;
 VALUE cMemcacheBase;
@@ -13,6 +14,7 @@ VALUE sym_port;
 VALUE sym_prefix;
 VALUE sym_hash;
 VALUE sym_hash_with_prefix;
+VALUE sym_binary;
 VALUE sym_servers;
 
 ID id_default;
@@ -28,16 +30,19 @@ ID id_murmur;
 
 static ID iv_memcache_flags, iv_memcache_cas;
 
-static void ns_free(void *p) {
+static void mc_free(void *p) {
   memcached_free(p);
 }
 
-static VALUE ns_alloc(VALUE klass) {
-  memcached_st *ns;
+static VALUE mc_alloc(VALUE klass) {
+  memcached_st *mc;
   VALUE obj;
 
-  ns  = memcached_create(NULL);
-  obj = Data_Wrap_Struct(klass, 0, ns_free, ns);
+  mc  = memcached_create(NULL);
+/*   memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_VERIFY_KEY, true); */
+  memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_CACHE_LOOKUPS, true);
+
+  obj = Data_Wrap_Struct(klass, 0, mc_free, mc);
   return obj;
 }
 
@@ -80,7 +85,7 @@ static memcached_hash_t hash_behavior(VALUE sym) {
   rb_raise(cMemcacheError, "Invalid hash behavior");
 }
 
-static VALUE ns_initialize(VALUE self, VALUE opts) {
+static VALUE mc_initialize(VALUE self, VALUE opts) {
   memcached_st *mc;
   VALUE hostv, portv, servers_aryv, prefixv, hashv;
   char* host;
@@ -98,6 +103,9 @@ static VALUE ns_initialize(VALUE self, VALUE opts) {
 
   if (RTEST( rb_hash_aref(opts, sym_hash_with_prefix) ))
     memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_HASH_WITH_PREFIX_KEY, true);
+
+  if (RTEST( rb_hash_aref(opts, sym_binary) ))
+    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_BINARY_PROTOCOL, true);
 
   if (!NIL_P(prefixv))
     memcached_callback_set(mc, MEMCACHED_CALLBACK_PREFIX_KEY, STR2CSTR(prefixv));
@@ -119,14 +127,92 @@ static VALUE ns_initialize(VALUE self, VALUE opts) {
   return self;
 }
 
-static VALUE ns_get(int argc, VALUE *argv, VALUE self) {
+static VALUE escape_key(VALUE key, bool* escaped) {
+  char*    str = RSTRING_PTR(key);
+  uint16_t len = RSTRING_LEN(key);
+  char*    new_str = NULL;
+  uint16_t new_len = len;
+  uint16_t i, j;
+
+  for (i = 0; i < len; i++) {
+    if (isspace(str[i]) || str[i] == '\\') new_len++;
+  }
+
+  if (new_len == len) {
+    if (escaped) *escaped = false;
+    return key;
+  } else {
+    if (escaped) *escaped = true;
+    new_str = (char *)malloc(new_len * sizeof(char));
+    for (i = 0, j = 0; i < len; i++, j++) {
+      if (isspace(str[i]) || str[i] == '\\') {
+        new_str[j] = '\\';
+        switch (str[i]) {
+        case ' '  : new_str[++j] = 's';  break;
+        case '\t' : new_str[++j] = 't';  break;
+        case '\n' : new_str[++j] = 'n';  break;
+        case '\v' : new_str[++j] = 'v';  break;
+        case '\f' : new_str[++j] = 'f';  break;
+        case '\\' : new_str[++j] = '\\'; break;
+        }
+      } else {
+        new_str[j] = str[i];
+      }
+    }
+    return rb_str_new(new_str, new_len);
+  }
+}
+
+static VALUE unescape_key(const char* str, uint16_t len) {
+  uint16_t i,j;
+  VALUE    key;
+  char*    new_str;
+  uint16_t new_len = len;
+
+  for (i = 0; i < len; i++) {
+    if (str[i] == '\\') {
+      new_len--;
+      i++;
+    }
+  }
+
+  if (new_len == len) {
+    key = rb_str_new(str, len);
+  } else {
+    key     = rb_str_buf_new(new_len);
+    new_str = RSTRING_PTR(key);
+
+    for (i = 0, j = 0; i < len; j++, i++) {
+      if (str[i] == '\\') {
+        switch (str[++i]) {
+        case 's'  : new_str[j] = ' ';  break;
+        case 't'  : new_str[j] = '\t'; break;
+        case 'n'  : new_str[j] = '\n'; break;
+        case 'v'  : new_str[j] = '\v'; break;
+        case 'f'  : new_str[j] = '\f'; break;
+        case '\\' : new_str[j] = '\\'; break;
+        }
+      } else {
+        new_str[j] = str[i];
+      }
+    }
+  }
+  return key;
+}
+
+static bool use_binary(memcached_st* mc) {
+  return memcached_behavior_get(mc, MEMCACHED_BEHAVIOR_BINARY_PROTOCOL);
+}
+
+static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
-  VALUE key_or_keys, cas, keys, results, key, value;
+  VALUE key_or_keys, cas, keys, results, key, escaped_key, value;
   memcached_return error;
   static memcached_result_st result;
   size_t       num_keys, i;
   const char** key_strings;
   size_t*      key_lengths;
+  bool         escaped = false;
 
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "11", &key_or_keys, &cas);
@@ -140,7 +226,9 @@ static VALUE ns_get(int argc, VALUE *argv, VALUE self) {
   if (num_keys == 0) return rb_hash_new();
 
   for (i = 0; i < RARRAY(keys)->len; i++) {
-    key = StringValue(RARRAY(keys)->ptr[i]);
+    key = RARRAY(keys)->ptr[i];
+    if (!use_binary(mc)) key = escape_key(key, &escaped);
+
     key_lengths[i] = RSTRING_LEN(key);
     key_strings[i] = RSTRING_PTR(key);
   }
@@ -152,7 +240,12 @@ static VALUE ns_get(int argc, VALUE *argv, VALUE self) {
   if (keys == key_or_keys) results = rb_hash_new();
 
   while (memcached_fetch_result(mc, &result, &error)) {
-    key   = rb_str_new(memcached_result_key_value(&result), memcached_result_key_length(&result));
+    if (escaped) {
+      key = unescape_key(memcached_result_key_value(&result), memcached_result_key_length(&result));
+    } else {
+      key = rb_str_new(memcached_result_key_value(&result), memcached_result_key_length(&result));
+    }
+
     value = rb_str_new(memcached_result_value(&result),     memcached_result_length(&result));
     rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(&result)));
     if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, INT2NUM(memcached_result_cas(&result)));
@@ -173,7 +266,7 @@ static VALUE ns_get(int argc, VALUE *argv, VALUE self) {
   }
 }
 
-VALUE ns_set(int argc, VALUE *argv, VALUE self) {
+VALUE mc_set(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, value, expiry, flags;
   static memcached_return_t result;
@@ -181,7 +274,8 @@ VALUE ns_set(int argc, VALUE *argv, VALUE self) {
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "22", &key, &value, &expiry, &flags);
 
-  key   = StringValue(key);
+  key = StringValue(key);
+  if (use_binary(mc)) key = escape_key(key, NULL);
   value = StringValue(value);
 
   result = memcached_set(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
@@ -195,7 +289,7 @@ VALUE ns_set(int argc, VALUE *argv, VALUE self) {
   }
 }
 
-static VALUE ns_cas(int argc, VALUE *argv, VALUE self) {
+static VALUE mc_cas(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, value, cas, expiry, flags;
   static memcached_return_t result;
@@ -220,7 +314,7 @@ static VALUE ns_cas(int argc, VALUE *argv, VALUE self) {
   }
 }
 
-VALUE ns_incr(int argc, VALUE *argv, VALUE self) {
+VALUE mc_incr(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, amount;
   memcached_return error;
@@ -244,7 +338,7 @@ VALUE ns_incr(int argc, VALUE *argv, VALUE self) {
   }
 }
 
-VALUE ns_decr(int argc, VALUE *argv, VALUE self) {
+VALUE mc_decr(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, amount;
   memcached_return error;
@@ -268,7 +362,7 @@ VALUE ns_decr(int argc, VALUE *argv, VALUE self) {
   }
 }
 
-VALUE ns_delete(VALUE self, VALUE key) {
+VALUE mc_delete(VALUE self, VALUE key) {
   memcached_st *mc;
   static memcached_return_t result;
 
@@ -285,7 +379,7 @@ VALUE ns_delete(VALUE self, VALUE key) {
   }
 }
 
-VALUE ns_add(int argc, VALUE *argv, VALUE self) {
+VALUE mc_add(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, value, expiry, flags;
   static memcached_return_t result;
@@ -309,7 +403,7 @@ VALUE ns_add(int argc, VALUE *argv, VALUE self) {
   }
 }
 
-VALUE ns_replace(int argc, VALUE *argv, VALUE self) {
+VALUE mc_replace(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, value, expiry, flags;
   static memcached_return_t result;
@@ -333,7 +427,7 @@ VALUE ns_replace(int argc, VALUE *argv, VALUE self) {
   }
 }
 
-VALUE ns_append(VALUE self, VALUE key, VALUE value) {
+VALUE mc_append(VALUE self, VALUE key, VALUE value) {
   memcached_st *mc;
   static memcached_return_t result;
 
@@ -350,7 +444,7 @@ VALUE ns_append(VALUE self, VALUE key, VALUE value) {
   }
 }
 
-VALUE ns_prepend(VALUE self, VALUE key, VALUE value) {
+VALUE mc_prepend(VALUE self, VALUE key, VALUE value) {
   memcached_st *mc;
   static memcached_return_t result;
 
@@ -367,7 +461,7 @@ VALUE ns_prepend(VALUE self, VALUE key, VALUE value) {
   }
 }
 
-VALUE ns_flush_all(int argc, VALUE *argv, VALUE self) {
+VALUE mc_flush_all(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE delay;
   static memcached_return_t result;
@@ -384,7 +478,7 @@ VALUE ns_flush_all(int argc, VALUE *argv, VALUE self) {
   }
 }
 
-VALUE ns_set_prefix(VALUE self, VALUE prefix) {
+VALUE mc_set_prefix(VALUE self, VALUE prefix) {
   memcached_st *mc;
   static memcached_return_t result;
   Data_Get_Struct(self, memcached_st, mc);
@@ -398,7 +492,7 @@ VALUE ns_set_prefix(VALUE self, VALUE prefix) {
   return prefix;
 }
 
-VALUE ns_get_prefix(VALUE self) {
+VALUE mc_get_prefix(VALUE self) {
   memcached_st *mc;
   static memcached_return_t result;
   char* prefix;
@@ -415,6 +509,7 @@ void Init_native_server() {
   sym_prefix           = ID2SYM(rb_intern("prefix"));
   sym_hash             = ID2SYM(rb_intern("hash"));
   sym_hash_with_prefix = ID2SYM(rb_intern("hash_with_prefix"));
+  sym_binary           = ID2SYM(rb_intern("binary"));
   sym_servers          = ID2SYM(rb_intern("servers"));
 
   iv_memcache_flags = rb_intern("@memcache_flags");
@@ -440,21 +535,21 @@ void Init_native_server() {
 
   cMemcacheBase = rb_define_class_under(cMemcache, "Base", rb_cObject);
   cNativeServer = rb_define_class_under(cMemcache, "NativeServer", cMemcacheBase);
-  rb_define_alloc_func(cNativeServer, ns_alloc);
-  rb_define_method(cNativeServer, "initialize", ns_initialize, 1);
+  rb_define_alloc_func(cNativeServer, mc_alloc);
+  rb_define_method(cNativeServer, "initialize", mc_initialize, 1);
 
-  rb_define_method(cNativeServer, "get",       ns_get,       -1);
-  rb_define_method(cNativeServer, "set",       ns_set,       -1);
-  rb_define_method(cNativeServer, "add",       ns_add,       -1);
-  rb_define_method(cNativeServer, "cas",       ns_cas,       -1);
-  rb_define_method(cNativeServer, "replace",   ns_replace,   -1);
-  rb_define_method(cNativeServer, "incr",      ns_incr,      -1);
-  rb_define_method(cNativeServer, "decr",      ns_decr,      -1);
-  rb_define_method(cNativeServer, "append",    ns_append,     2);
-  rb_define_method(cNativeServer, "prepend",   ns_prepend,    2);
-  rb_define_method(cNativeServer, "delete",    ns_delete,     1);
-  rb_define_method(cNativeServer, "flush_all", ns_flush_all, -1);
+  rb_define_method(cNativeServer, "get",       mc_get,       -1);
+  rb_define_method(cNativeServer, "set",       mc_set,       -1);
+  rb_define_method(cNativeServer, "add",       mc_add,       -1);
+  rb_define_method(cNativeServer, "cas",       mc_cas,       -1);
+  rb_define_method(cNativeServer, "replace",   mc_replace,   -1);
+  rb_define_method(cNativeServer, "incr",      mc_incr,      -1);
+  rb_define_method(cNativeServer, "decr",      mc_decr,      -1);
+  rb_define_method(cNativeServer, "append",    mc_append,     2);
+  rb_define_method(cNativeServer, "prepend",   mc_prepend,    2);
+  rb_define_method(cNativeServer, "delete",    mc_delete,     1);
+  rb_define_method(cNativeServer, "flush_all", mc_flush_all, -1);
 
-  rb_define_method(cNativeServer, "prefix=", ns_set_prefix, 1);
-  rb_define_method(cNativeServer, "prefix",  ns_get_prefix, 0);
+  rb_define_method(cNativeServer, "prefix=", mc_set_prefix, 1);
+  rb_define_method(cNativeServer, "prefix",  mc_get_prefix, 0);
 }

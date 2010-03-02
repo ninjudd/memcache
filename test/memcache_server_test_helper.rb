@@ -40,7 +40,19 @@ module MemcacheServerTestHelper
     assert_equal 'bar', m.get('2')
   end
 
-  def xtest_expiry
+  def test_spaces_in_keys
+    assert_equal '1', m.set('foo bar', '1', 0)
+
+    assert_equal '1', m.get('foo bar')
+    assert_equal '1', m.get('foo bar')
+
+    assert_equal '2', m.set('foo bar', '2', 0)
+
+    assert_equal '2', m.get('foo bar')
+    assert_equal '2', m.get('foo bar')
+  end
+
+  def test_expiry
     assert_equal 'foo', m.set('foo', 'foo', 1)
     assert_equal 'foo', m.get('foo')
 

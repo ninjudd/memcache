@@ -15,7 +15,7 @@ class MemcacheTest < Test::Unit::TestCase
       assert_equal i, m.get(i.to_s)
     end
 
-    keys = (0..200).to_a
+    keys = (0..200).collect {|key| key.to_s}
     results = m.get(keys)
     assert_equal 100, results.size
     results.each do |key, value|
@@ -133,7 +133,7 @@ class MemcacheTest < Test::Unit::TestCase
       assert_equal i, m.get(i.to_s)
     end
 
-    keys = (0...200).to_a
+    keys = (0...200).collect {|key| key.to_s}
     results = m.get_some(keys) do |missing_keys|
       assert_equal 100, missing_keys.size
       r = {}
