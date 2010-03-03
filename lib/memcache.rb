@@ -105,9 +105,10 @@ class Memcache
     raise 'opts must be hash' unless opts.instance_of?(Hash)
 
     if keys.instance_of?(Array)
+      keys.collect! {|key| key.to_s}
       multi_get(keys, opts)
     else
-      key = keys
+      key = keys.to_s
       if opts[:expiry]
         value = server(key).gets(key)
         cas(key, value, :raw => true, :cas => value.memcache_cas, :expiry => opts[:expiry]) if value
@@ -126,6 +127,7 @@ class Memcache
 
   def set(key, value, opts = {})
     opts = compatible_opts(opts)
+    key  = key.to_s
     backup.set(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
@@ -141,6 +143,7 @@ class Memcache
 
   def add(key, value, opts = {})
     opts = compatible_opts(opts)
+    key  = key.to_s
     backup.add(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
@@ -151,6 +154,7 @@ class Memcache
 
   def replace(key, value, opts = {})
     opts = compatible_opts(opts)
+    key  = key.to_s
     backup.replace(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
@@ -161,6 +165,7 @@ class Memcache
 
   def cas(key, value, opts)
     raise 'opts must be hash' unless opts.instance_of?(Hash)
+    key = key.to_s
     backup.cas(key, value, opts) if backup
 
     expiry = opts[:expiry] || default_expiry
@@ -170,11 +175,13 @@ class Memcache
   end
 
   def append(key, value)
+    key = key.to_s
     backup.append(key, value) if backup
     server(key).append(key, value)
   end
 
   def prepend(key, value)
+    key = key.to_s
     backup.prepend(key, value) if backup
     server(key).prepend(key, value)
   end
@@ -184,16 +191,19 @@ class Memcache
   end
 
   def incr(key, amount = 1)
+    key = key.to_s
     backup.incr(key, amount) if backup
     server(key).incr(key, amount)
   end
 
   def decr(key, amount = 1)
+    key = key.to_s
     backup.decr(key, amount) if backup
     server(key).decr(key, amount)
   end
 
   def update(key, opts = {})
+    key   = key.to_s
     value = get(key, :cas => true)
     if value
       cas(key, yield(value), opts.merge!(:cas => value.memcache_cas))
@@ -204,6 +214,7 @@ class Memcache
 
   def get_or_add(key, *args)
     # Pseudo-atomic get and update.
+    key = key.to_s
     if block_given?
       opts = args[0] || {}
       get(key) || add(key, yield, opts) || get(key)
@@ -214,6 +225,7 @@ class Memcache
   end
 
   def get_or_set(key, *args)
+    key = key.to_s
     if block_given?
       opts = args[0] || {}
       get(key) || set(key, yield, opts)
@@ -224,7 +236,8 @@ class Memcache
   end
 
   def get_some(keys, opts = {})
-    records = opts[:disable] ? {} : self.get(keys, opts)
+    keys = keys.collect {|key| key.to_s}
+    records = opts[:disable] ? {} : self.multi_get(keys, opts)
     if opts[:validation]
       records.delete_if do |key, value|
         not opts[:validation].call(key, value)
@@ -305,11 +318,11 @@ class Memcache
   alias clear flush_all
 
   def [](key)
-    get(key.to_s)
+    get(key)
   end
 
   def []=(key, value)
-    set(key.to_s, value)
+    set(key, value)
   end
 
   def self.init(yaml_file = nil)
