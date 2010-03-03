@@ -9,7 +9,7 @@ class MemcacheSegmentedNativeServerTest < Test::Unit::TestCase
   include MemcacheServerTestHelper::AdvancedMethods
   with_prefixes nil, "foo:", "bar:"
 
-  PORTS = [11212] #, 11213, 11214]
+  PORTS = [11212, 11213, 11214]
   def setup
     init_memcache(*PORTS) do
       Memcache::SegmentedNativeServer.new(:servers => PORTS.collect {|p| "localhost:#{p}"})

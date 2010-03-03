@@ -44,6 +44,7 @@ class Memcache
     def set(key, value, expiry = 0, flags = 0)
       key = cache_key(key)
       @data[key] = value.to_s
+      expiry = Time.at(expiry) if expiry > 60*60*24*30
       if expiry.kind_of?(Time)
         @expiry[key] = expiry
       else
