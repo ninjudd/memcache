@@ -283,6 +283,7 @@ class Memcache
   end
 
   def delete(key)
+    key = key.to_s
     backup.delete(key) if backup
     server(key).delete(key)
   end
