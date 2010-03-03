@@ -211,12 +211,13 @@ the +SegmentedNativeServer+ object or by combining the +native+ option with
 
 NativeServer also accepts a few other options:
 
-[+hash+] The libmemcached hashing method. One of <tt>:default</tt>, <tt>:md5</tt>,
+[+hash+] The libmemcached hashing method. One of: <tt>:default</tt>, <tt>:md5</tt>,
          <tt>:crc</tt>, <tt>:fnv1_64</tt>, <tt>:fnv1a_64</tt>, <tt>:fnv1_32</tt>,
-         <tt>:fnv1a_32</tt>, <tt>:jenkins</tt>, <tt>:hsieh</tt>, <tt>:murmur</tt>. NOTE:
-         Even thought there is a libmemcached method named <tt>:default</tt> (which is
-         actually Jenkins's one-at-a-time hash), the default hashing method if you don't
-         specify one is <tt>:crc</tt>.
+         <tt>:fnv1a_32</tt>, <tt>:jenkins</tt>, <tt>:hsieh</tt>, or <tt>:murmur</tt>.
+
+         NOTE: Even though there is a libmemcached method named <tt>:default</tt> (which
+         is actually Jenkins's one-at-a-time hash), the default hashing method if you
+         don't specify one is <tt>:crc</tt>.
 
 [+binary+] A boolean value specifying whether to use memcached's binary protocol instead
            of the default ascii protocol. This is slightly slower, but should allow you to use unicode keys.
