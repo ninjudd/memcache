@@ -2,8 +2,8 @@
 
 This is the Geni memcached client. It started out as a fork of fiveruns/memcache-client,
 which was a fork of seattle.rb's memcache-client, but over time, our client has diverged,
-and I've rewritten most of the code. Of course, a lot of credit is due to those whose code
-served as a starting point for this code.
+and I've rewritten the majority of the code. Of course, a lot of credit is due to those
+whose code served as a starting point for this code.
 
 == Usage
 
@@ -16,11 +16,11 @@ served as a starting point for this code.
  cache['things']
  => {:foo => "1", :bar => [1,2,3]}
 
-== How is this different from memcache-client?
+== How is this different from other memcache clients?
 
-Like memcache-client, _memcache_ (shown in italics when I am referring to this
-library) is a memcached client, but it differs significantly from memcache-client in
-several important ways.
+Like fiveruns/memcache-client and fauna/memcached, _memcache_ (shown in italics when I am
+referring to this library) is a memcached client, but it differs significantly from
+these clients in several important ways.
 
 === Interface
 
@@ -111,13 +111,13 @@ changes:
 
 The underlying architechture of _memcache_ is more modular than memcache-client.
 A given +Memcache+ instance has a group of servers, just like before, but much more of the
-functionality in encapsulated inside the <tt>Memcache::Server</tt> object. Really, a +Server+
+functionality is encapsulated inside the <tt>Memcache::Server</tt> object. Really, a +Server+
 object is a thin wrapper around an remote memcached server that takes care of the socket
 and protocol details along with basic error handling. The +Memcache+ class handles the
 partitioning algorithm, marshaling of ruby objects and various higher-level methods.
 
 By encapsulating the protocol inside the +Server+ object, it becomes very easy to plug-in
-alternate server implementations. Right now, there are two basic, alternate servers:
+alternate backend server implementations. Right now, there are three basic, alternate servers:
 
 [+LocalServer+] This is an in-process server for storing keys and values in local
                 memory. It is good for testing, when you don't want to spin up an instance
@@ -130,6 +130,9 @@ alternate server implementations. Right now, there are two basic, alternate serv
              table. This works well as a permanent cache or in the case when your objects
              are very large. It can also be used in a multi-level cache setup with
              <tt>Memcache::Server</tt> to provide persistence without sacrificing speed.
+
+[+NativeServer+] This implementation uses native bindings to libmemcached. It is described
+                 in more detail in the "Native Bindings" section below.
 
 === Very Large Values
 
@@ -169,6 +172,52 @@ every write operation is retried once by closing and reopening the connection be
 finally marking a server as dead and raising an exception. We will not attempt to read
 from a dead server for 5 seconds, but a write will always attempt to revive a dead server
 by attempting to connect.
+
+=== Keys, Namespaces, and Prefixes
+
+Unlike the other ruby memcache clients, keys in _memcache_ can contain spaces. This is
+possible because the backend transparently enscapes all space characters, and is
+especially important if you are using method_cache[http://github.com/ninjudd/method_cache]
+or record_cache[http://github.com/ninjudd/record_cache]. +Memcache::Server+ implements
+this escaping using gsub and it adds a slight performance penalty when escaping is
+necessary. NativeServer implements this escaping directly in C, and the performance
+overhead is negligible.
+
+You can also partition your keys into different namespaces for convenience. This is done
+by prefixing all keys in the backend server with "namespace:". However, the hash keys
+returned by multi gets do not contain the prefix. In this way, the namespace can be
+totally transparent to your code. You can also determine whether the prefix is used for
+hashing with the following option:
+
+[+hash_with_prefix+] Determines whether the prefix/namespace is used when hashing keys to
+                     determine which server to use. Defaults to true.
+
+== Native Bindings
+
+The Memcache::NativeServer backend provides native bindings to libmecached. This is
+significantly faster than using Memcache::Server as demonstrated by runnning
+bench/benchmark.rb. NativeServer encapsulates a set of remote servers and allows you to
+use the various hashing methods in libmemcached.
+
+You can use native bindings either by passing +NativeServer+ objects to +Memcache+, or you
+can use the +native+ option. Native bindings are compatible with segmented values through
+the +SegmentedNativeServer+ object or by combining the +native+ option with
++segment_large_values+.
+
+ server = Memcache::NativeServer.new(:servers => ['localhost:11211', 'localhost:11212'])
+ cache = Memcache.new(:server => server)
+
+ cache = Memcache.new(:servers => ['localhost:11211', 'localhost:11212'], :native => true)
+
+NativeServer also accepts a few other options:
+
+[+hash+] The libmemcached hashing method. One of +:default+, +:md5+, +:crc+, +:fnv1_64+,
+         +:fnv1a_64+, +:fnv1_32+, +:fnv1a_32+, +:jenkins+, +:hsieh+, +:murmur+. NOTE: Even
+         thought there is a libmemcached method named +:default+ (which is actually Jenkins's
+         one-at-a-time hash), the default hashing method if you don't specify one is +:crc+.
+
+[+binary+] A boolean value specifying whether to use memcached's binary protocol instead
+           of the default ascii protocol. This is slightly slower, but should allow you to use unicode keys.
 
 == Installation
 
