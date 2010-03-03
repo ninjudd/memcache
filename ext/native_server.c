@@ -46,26 +46,19 @@ static VALUE mc_alloc(VALUE klass) {
   return obj;
 }
 
-VALUE throw_error(memcached_return_t *error) {
+static VALUE throw_error(memcached_return_t *error) {
   memcached_st *mc;
   printf("ERROR: %s\n", memcached_strerror(mc, *error));
   switch(*error) {
-
-    case MEMCACHED_SERVER_ERROR:
-      rb_raise(cMemcacheServerError, "Server error");
-
-    case MEMCACHED_CLIENT_ERROR:
-      rb_raise(cMemcacheClientError, "Client error");
-
-    case MEMCACHED_CONNECTION_FAILURE:
-    case MEMCACHED_CONNECTION_BIND_FAILURE:
-    case MEMCACHED_CONNECTION_SOCKET_CREATE_FAILURE:
-      rb_raise(cMemcacheConnectionError, "Connection error");
-
-    default:
-      rb_raise(cMemcacheError, "Memcache error");
+  case MEMCACHED_SERVER_ERROR: rb_raise(cMemcacheServerError, "Server error");
+  case MEMCACHED_CLIENT_ERROR: rb_raise(cMemcacheClientError, "Client error");
+  case MEMCACHED_CONNECTION_FAILURE:
+  case MEMCACHED_CONNECTION_BIND_FAILURE:
+  case MEMCACHED_CONNECTION_SOCKET_CREATE_FAILURE:
+    rb_raise(cMemcacheConnectionError, "Connection error");
+  default:
+    rb_raise(cMemcacheError, "Memcache error");
   }
-
   return Qnil;
 }
 
@@ -143,7 +136,10 @@ static VALUE escape_key(VALUE key, bool* escaped) {
     return key;
   } else {
     if (escaped) *escaped = true;
-    new_str = (char *)malloc(new_len * sizeof(char));
+    key = rb_str_buf_new(new_len);
+    RSTRING(key)->len = new_len;
+    new_str = RSTRING_PTR(key);
+
     for (i = 0, j = 0; i < len; i++, j++) {
       if (isspace(str[i]) || str[i] == '\\') {
         new_str[j] = '\\';
@@ -159,7 +155,7 @@ static VALUE escape_key(VALUE key, bool* escaped) {
         new_str[j] = str[i];
       }
     }
-    return rb_str_new(new_str, new_len);
+    return key;
   }
 }
 
@@ -179,7 +175,8 @@ static VALUE unescape_key(const char* str, uint16_t len) {
   if (new_len == len) {
     key = rb_str_new(str, len);
   } else {
-    key     = rb_str_buf_new(new_len);
+    key = rb_str_buf_new(new_len);
+    RSTRING(key)->len = new_len;
     new_str = RSTRING_PTR(key);
 
     for (i = 0, j = 0; i < len; j++, i++) {
@@ -201,67 +198,83 @@ static VALUE unescape_key(const char* str, uint16_t len) {
 }
 
 static bool use_binary(memcached_st* mc) {
-  return memcached_behavior_get(mc, MEMCACHED_BEHAVIOR_BINARY_PROTOCOL);
+  return memcached_behavior_get(mc, MEMCACHED_BEHAVIOR_BINARY_PROTOCOL) != 0;
 }
 
 static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
-  VALUE key_or_keys, cas, keys, results, key, escaped_key, value;
-  memcached_return error;
-  static memcached_result_st result;
-  size_t       num_keys, i;
-  const char** key_strings;
-  size_t*      key_lengths;
-  bool         escaped = false;
+  VALUE cas, keys, results, key, escaped_key, value;
+  VALUE scalar_key = Qnil;
+  memcached_return status;
 
   Data_Get_Struct(self, memcached_st, mc);
-  rb_scan_args(argc, argv, "11", &key_or_keys, &cas);
+  rb_scan_args(argc, argv, "11", &keys, &cas);
+  memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_SUPPORT_CAS, RTEST(cas) ? 1 : 0);
 
-  keys = TYPE(key_or_keys) == T_ARRAY ? key_or_keys : rb_ary_new4(1, &key_or_keys);
-
-  num_keys = RARRAY_LEN(keys);
-  key_strings = (const char**) malloc(num_keys * sizeof(char *));
-  key_lengths = (size_t *) malloc(num_keys * sizeof(size_t));
-
-  if (num_keys == 0) return rb_hash_new();
-
-  for (i = 0; i < RARRAY(keys)->len; i++) {
-    key = RARRAY(keys)->ptr[i];
-    if (!use_binary(mc)) key = escape_key(key, &escaped);
-
-    key_lengths[i] = RSTRING_LEN(key);
-    key_strings[i] = RSTRING_PTR(key);
+  if (RTEST(cas) && TYPE(keys) != T_ARRAY) {
+    scalar_key = keys;
+    keys = rb_ary_new4(1, &keys);
   }
 
-  memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_SUPPORT_CAS, RTEST(cas) ? 1 : 0);
-  memcached_mget(mc, key_strings, key_lengths, num_keys);
-  memcached_result_create(mc, &result);
+  if (TYPE(keys) != T_ARRAY) {
+    char*    result;
+    size_t   len;
+    uint32_t flags;
 
-  if (keys == key_or_keys) results = rb_hash_new();
+    key = use_binary(mc) ? keys : escape_key(keys, NULL);
+    result = memcached_get(mc, RSTRING_PTR(key), RSTRING_LEN(key), &len, &flags, &status);
+    if (result == NULL) return Qnil;
 
-  while (memcached_fetch_result(mc, &result, &error)) {
-    if (escaped) {
-      key = unescape_key(memcached_result_key_value(&result), memcached_result_key_length(&result));
+    if (status == MEMCACHED_SUCCESS) {
+      value = rb_str_new(result, len);
+      rb_ivar_set(value, iv_memcache_flags, INT2NUM(flags));
+      return value;
     } else {
-      key = rb_str_new(memcached_result_key_value(&result), memcached_result_key_length(&result));
+      printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
+    }
+  } else {
+    static memcached_result_st result;
+    size_t       num_keys, i;
+    const char** key_strings;
+    size_t*      key_lengths;
+    bool         escaped;
+
+    results = rb_hash_new();
+    num_keys = RARRAY_LEN(keys);
+    if (num_keys == 0) return results;
+
+    key_strings = (const char**) malloc(num_keys * sizeof(char *));
+    key_lengths = (size_t *) malloc(num_keys * sizeof(size_t));
+    for (i = 0; i < RARRAY(keys)->len; i++) {
+      key = RARRAY(keys)->ptr[i];
+      if (!use_binary(mc)) key = escape_key(key, &escaped);
+
+      key_lengths[i] = RSTRING_LEN(key);
+      key_strings[i] = RSTRING_PTR(key);
     }
 
-    value = rb_str_new(memcached_result_value(&result),     memcached_result_length(&result));
-    rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(&result)));
-    if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, INT2NUM(memcached_result_cas(&result)));
+    memcached_mget(mc, key_strings, key_lengths, num_keys);
+    memcached_result_create(mc, &result);
 
-    if (keys != key_or_keys) return value;
+    while (memcached_fetch_result(mc, &result, &status)) {
+      if (escaped) {
+        key = unescape_key(memcached_result_key_value(&result), memcached_result_key_length(&result));
+      } else {
+        key = rb_str_new(memcached_result_key_value(&result), memcached_result_key_length(&result));
+      }
 
-    rb_hash_aset(results, key, value);
-  }
-
-  if (error != MEMCACHED_END) {
-    printf("Memcache read error: %s %u\n", memcached_strerror(mc, error), error);
-  }
-
-  if (keys != key_or_keys) {
-    return Qnil;
-  } else {
+      if (status == MEMCACHED_SUCCESS) {
+        value = rb_str_new(memcached_result_value(&result), memcached_result_length(&result));
+        rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(&result)));
+        if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, INT2NUM(memcached_result_cas(&result)));
+        rb_hash_aset(results, key, value);
+      } else {
+        printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
+      }
+    }
+    free(key_strings);
+    free(key_lengths);
+    if (!NIL_P(scalar_key)) return rb_hash_aref(results, scalar_key);
     return results;
   }
 }
@@ -275,7 +288,7 @@ VALUE mc_set(int argc, VALUE *argv, VALUE self) {
   rb_scan_args(argc, argv, "22", &key, &value, &expiry, &flags);
 
   key = StringValue(key);
-  if (use_binary(mc)) key = escape_key(key, NULL);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
   value = StringValue(value);
 
   result = memcached_set(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
@@ -317,7 +330,6 @@ static VALUE mc_cas(int argc, VALUE *argv, VALUE self) {
 VALUE mc_incr(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, amount;
-  memcached_return error;
   static memcached_return_t result;
   uint64_t *value;
 
@@ -341,7 +353,6 @@ VALUE mc_incr(int argc, VALUE *argv, VALUE self) {
 VALUE mc_decr(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, amount;
-  memcached_return error;
   static memcached_return_t result;
   uint64_t *value;
 
