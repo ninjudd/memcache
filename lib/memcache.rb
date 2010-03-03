@@ -4,8 +4,13 @@ $:.unshift(File.dirname(__FILE__))
 require 'memcache/base'
 require 'memcache/server'
 require 'memcache/local_server'
-require 'memcache/native_server'
 require 'memcache/segmented'
+
+begin
+  require 'memcache/native_server'
+rescue LoadError => e
+  puts "memcache is not using native bindings. for faster performance, compile extensions by hand or install as a local gem."
+end
 
 class Memcache
   DEFAULT_EXPIRY  = 0
