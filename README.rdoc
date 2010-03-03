@@ -211,9 +211,11 @@ the +SegmentedNativeServer+ object or by combining the +native+ option with
 
 NativeServer also accepts a few other options:
 
-[+hash+] The libmemcached hashing method. One of: <tt>:default</tt>, <tt>:md5</tt>,
-         <tt>:crc</tt>, <tt>:fnv1_64</tt>, <tt>:fnv1a_64</tt>, <tt>:fnv1_32</tt>,
-         <tt>:fnv1a_32</tt>, <tt>:jenkins</tt>, <tt>:hsieh</tt>, or <tt>:murmur</tt>.
+[+hash+] The libmemcached hashing method. See http://docs.tangent.org/libmemcached/index.html
+         for more detail. One of:
+
+         <tt>:default :md5 :crc :fnv1_64 :fnv1a_64 :fnv1_32 :fnv1a_32 :jenkins
+         :hsieh :murmur</tt>.
 
          NOTE: Even though there is a libmemcached method named <tt>:default</tt> (which
          is actually Jenkins's one-at-a-time hash), the default hashing method if you
