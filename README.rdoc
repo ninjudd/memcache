@@ -178,9 +178,9 @@ by attempting to connect.
 Unlike the other ruby memcache clients, keys in _memcache_ can contain spaces. This is
 possible because the backend transparently enscapes all space characters, and is
 especially important if you are using method_cache[http://github.com/ninjudd/method_cache]
-or record_cache[http://github.com/ninjudd/record_cache]. +Memcache::Server+ implements
+or record_cache[http://github.com/ninjudd/record_cache]. <tt>Memcache::Server</tt> implements
 this escaping using gsub and it adds a slight performance penalty when escaping is
-necessary. NativeServer implements this escaping directly in C, and the performance
+necessary. +NativeServer+ implements this escaping directly in C, and the performance
 overhead is negligible.
 
 You can also partition your keys into different namespaces for convenience. This is done
@@ -194,8 +194,8 @@ hashing with the following option:
 
 == Native Bindings
 
-The Memcache::NativeServer backend provides native bindings to libmecached. This is
-significantly faster than using Memcache::Server as demonstrated by runnning
+The <tt>Memcache::NativeServer</tt> backend provides native bindings to libmecached. This is
+significantly faster than using <tt>Memcache::Server</tt> as demonstrated by runnning
 bench/benchmark.rb. NativeServer encapsulates a set of remote servers and allows you to
 use the various hashing methods in libmemcached.
 
@@ -211,10 +211,12 @@ the +SegmentedNativeServer+ object or by combining the +native+ option with
 
 NativeServer also accepts a few other options:
 
-[+hash+] The libmemcached hashing method. One of +:default+, +:md5+, +:crc+, +:fnv1_64+,
-         +:fnv1a_64+, +:fnv1_32+, +:fnv1a_32+, +:jenkins+, +:hsieh+, +:murmur+. NOTE: Even
-         thought there is a libmemcached method named +:default+ (which is actually Jenkins's
-         one-at-a-time hash), the default hashing method if you don't specify one is +:crc+.
+[+hash+] The libmemcached hashing method. One of <tt>:default</tt>, <tt>:md5</tt>,
+         <tt>:crc</tt>, <tt>:fnv1_64</tt>, <tt>:fnv1a_64</tt>, <tt>:fnv1_32</tt>,
+         <tt>:fnv1a_32</tt>, <tt>:jenkins</tt>, <tt>:hsieh</tt>, <tt>:murmur</tt>. NOTE:
+         Even thought there is a libmemcached method named <tt>:default</tt> (which is
+         actually Jenkins's one-at-a-time hash), the default hashing method if you don't
+         specify one is <tt>:crc</tt>.
 
 [+binary+] A boolean value specifying whether to use memcached's binary protocol instead
            of the default ascii protocol. This is slightly slower, but should allow you to use unicode keys.
