@@ -58,4 +58,4 @@ if !ENV["EXTERNAL_LIB"]
   $LIBS << " -lmemcached_gem"
 end
 
-create_makefile('native_server')
+create_makefile('memcache/native_server')
