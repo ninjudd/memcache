@@ -7,16 +7,7 @@ HERE        = File.expand_path(File.dirname(__FILE__))
 BUNDLE      = Dir.glob("libmemcached-*.tar.gz").first
 BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
 
-$CFLAGS   = "#{RbConfig::CONFIG['CFLAGS']} #{$CFLAGS}".gsub("$(cflags)", "")
-$LDFLAGS  = "#{RbConfig::CONFIG['LDFLAGS']} #{$LDFLAGS}".gsub("$(ldflags)", "")
 $CXXFLAGS = " -std=gnu++98"
-$CPPFLAGS = $ARCH_FLAG = $DLDFLAGS = ""
-
-if ENV['DEBUG']
-  puts "Setting debug flags."
-  $CFLAGS << " -O0 -ggdb -DHAVE_DEBUG"
-  $EXTRA_CONF = " --enable-debug"
-end
 
 if !ENV["EXTERNAL_LIB"]
   $includes    = " -I#{HERE}/include"
@@ -35,7 +26,7 @@ if !ENV["EXTERNAL_LIB"]
       raise "'#{cmd}' failed" unless system(cmd)
       
       Dir.chdir(BUNDLE_PATH) do        
-        puts(cmd = "env LDFLAGS='-fPIC #{$LDFLAGS}' ./configure --prefix=#{HERE} --without-memcached --disable-shared --disable-dependency-tracking --disable-utils #{$EXTRA_CONF} 2>&1")
+        puts(cmd = "env CFLAGS='-fPIC' ./configure --prefix=#{HERE} --without-memcached --disable-shared --disable-utils --disable-dependency-tracking #{$EXTRA_CONF} 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
         puts(cmd = "make CXXFLAGS='#{$CXXFLAGS}' || true 2>&1")
