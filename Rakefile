@@ -61,7 +61,7 @@ end
 
 namespace :test do
   Rake::TestTask.new(:native) do |t|
-    `cd ext && make && cp native_server.bundle ../lib/`
+    `cd ext && make && cp native_server.bundle native_server.o ../lib/memcache/`
     t.libs << 'test'
     t.pattern = 'test/memcache_native_server_test.rb'
     t.verbose

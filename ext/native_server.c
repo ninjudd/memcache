@@ -514,6 +514,12 @@ VALUE mc_get_prefix(VALUE self) {
   return prefix ? rb_str_new2(prefix) : Qnil;
 }
 
+VALUE mc_close(VALUE self) {
+  memcached_st *mc;
+  Data_Get_Struct(self, memcached_st, mc);
+  memcached_quit(mc);
+}
+
 void Init_native_server() {
   sym_host             = ID2SYM(rb_intern("host"));
   sym_port             = ID2SYM(rb_intern("port"));
@@ -559,6 +565,7 @@ void Init_native_server() {
   rb_define_method(cNativeServer, "append",    mc_append,     2);
   rb_define_method(cNativeServer, "prepend",   mc_prepend,    2);
   rb_define_method(cNativeServer, "delete",    mc_delete,     1);
+  rb_define_method(cNativeServer, "close",     mc_close,      0);
   rb_define_method(cNativeServer, "flush_all", mc_flush_all, -1);
 
   rb_define_method(cNativeServer, "prefix=", mc_set_prefix, 1);

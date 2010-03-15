@@ -21,4 +21,11 @@ class MemcacheNativeServerTest < Test::Unit::TestCase
       m.set('foo', 'foo')
     end
   end
+
+  def test_close
+    m.close
+
+    m.set('foo', 'foo')
+    assert_equal 'foo', m.get('foo')
+  end
 end
