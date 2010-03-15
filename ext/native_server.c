@@ -266,7 +266,7 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
       if (status == MEMCACHED_SUCCESS) {
         value = rb_str_new(memcached_result_value(&result), memcached_result_length(&result));
         rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(&result)));
-        if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, INT2NUM(memcached_result_cas(&result)));
+        if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, ULL2NUM(memcached_result_cas(&result)));
         rb_hash_aset(results, key, value);
       } else {
         printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
@@ -292,8 +292,8 @@ VALUE mc_set(int argc, VALUE *argv, VALUE self) {
   value = StringValue(value);
 
   result = memcached_set(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
-                        RTEST(expiry) ? NUM2INT(expiry) : 0,
-                        RTEST(flags)  ? NUM2INT(flags)  : 0);
+                        RTEST(expiry) ? NUM2UINT(expiry) : 0,
+                        RTEST(flags)  ? NUM2UINT(flags)  : 0);
 
   if (result == MEMCACHED_SUCCESS) {
     return value;
@@ -314,9 +314,9 @@ static VALUE mc_cas(int argc, VALUE *argv, VALUE self) {
   value = StringValue(value);
 
   result = memcached_cas(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
-                        RTEST(expiry) ? NUM2INT(expiry) : 0,
-                        RTEST(flags)  ? NUM2INT(flags)  : 0,
-                        NUM2INT(cas));
+                        RTEST(expiry) ? NUM2UINT(expiry) : 0,
+                        RTEST(flags)  ? NUM2UINT(flags)  : 0,
+                        NUM2ULL(cas));
 
   if (result == MEMCACHED_SUCCESS) {
     return value;
@@ -402,8 +402,8 @@ VALUE mc_add(int argc, VALUE *argv, VALUE self) {
   value = StringValue(value);
 
   result = memcached_add(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
-                         RTEST(expiry) ? NUM2INT(expiry) : 0,
-                         RTEST(flags)  ? NUM2INT(flags)  : 0);
+                         RTEST(expiry) ? NUM2UINT(expiry) : 0,
+                         RTEST(flags)  ? NUM2UINT(flags)  : 0);
 
   if (result == MEMCACHED_SUCCESS) {
     return value;
@@ -426,8 +426,8 @@ VALUE mc_replace(int argc, VALUE *argv, VALUE self) {
   value = StringValue(value);
 
   result = memcached_replace(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
-                         RTEST(expiry) ? NUM2INT(expiry) : 0,
-                         RTEST(flags)  ? NUM2INT(flags)  : 0);
+                         RTEST(expiry) ? NUM2UINT(expiry) : 0,
+                         RTEST(flags)  ? NUM2UINT(flags)  : 0);
 
   if (result == MEMCACHED_SUCCESS) {
     return value;
@@ -480,7 +480,7 @@ VALUE mc_flush_all(int argc, VALUE *argv, VALUE self) {
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "01", &delay);
 
-  result = memcached_flush(mc, RTEST(delay) ? NUM2INT(delay) : 0);
+  result = memcached_flush(mc, RTEST(delay) ? NUM2UINT(delay) : 0);
 
   if (result == MEMCACHED_SUCCESS) {
     return Qnil;
