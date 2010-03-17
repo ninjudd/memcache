@@ -217,17 +217,18 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
   }
 
   if (TYPE(keys) != T_ARRAY) {
-    char*    result;
+    char*    str;
     size_t   len;
     uint32_t flags;
 
     key = use_binary(mc) ? keys : escape_key(keys, NULL);
-    result = memcached_get(mc, RSTRING_PTR(key), RSTRING_LEN(key), &len, &flags, &status);
-    if (result == NULL) return Qnil;
+    str = memcached_get(mc, RSTRING_PTR(key), RSTRING_LEN(key), &len, &flags, &status);
+    if (str == NULL) return Qnil;
 
     if (status == MEMCACHED_SUCCESS) {
-      value = rb_str_new(result, len);
+      value = rb_str_new(str, len);
       rb_ivar_set(value, iv_memcache_flags, INT2NUM(flags));
+      free(str);
       return value;
     } else {
       printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
@@ -267,6 +268,7 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
         value = rb_str_new(memcached_result_value(&result), memcached_result_length(&result));
         rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(&result)));
         if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, ULL2NUM(memcached_result_cas(&result)));
+        memcached_result_free(&result);
         rb_hash_aset(results, key, value);
       } else {
         printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
