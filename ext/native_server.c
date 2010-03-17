@@ -269,6 +269,7 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
         rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(&result)));
         if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, ULL2NUM(memcached_result_cas(&result)));
         memcached_result_free(&result);
+        memcached_result_create(mc, &result);
         rb_hash_aset(results, key, value);
       } else {
         printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
