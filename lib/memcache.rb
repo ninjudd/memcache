@@ -86,7 +86,7 @@ class Memcache
 
   def namespace=(namespace)
     @namespace = namespace
-    prefix = "#{namespace}:"
+    prefix = namespace ? "#{namespace}:" : nil
     servers.each do |server|
       server.prefix = prefix
     end
