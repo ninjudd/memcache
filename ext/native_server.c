@@ -234,7 +234,7 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
       printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
     }
   } else {
-    static memcached_result_st result;
+    memcached_result_st* result;
     size_t       num_keys, i;
     const char** key_strings;
     size_t*      key_lengths;
@@ -255,21 +255,19 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
     }
 
     memcached_mget(mc, key_strings, key_lengths, num_keys);
-    memcached_result_create(mc, &result);
 
-    while (memcached_fetch_result(mc, &result, &status)) {
+    while (result = memcached_fetch_result(mc, NULL, &status)) {
       if (escaped) {
-        key = unescape_key(memcached_result_key_value(&result), memcached_result_key_length(&result));
+        key = unescape_key(memcached_result_key_value(result), memcached_result_key_length(result));
       } else {
-        key = rb_str_new(memcached_result_key_value(&result), memcached_result_key_length(&result));
+        key = rb_str_new(memcached_result_key_value(result), memcached_result_key_length(result));
       }
 
       if (status == MEMCACHED_SUCCESS) {
-        value = rb_str_new(memcached_result_value(&result), memcached_result_length(&result));
-        rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(&result)));
-        if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, ULL2NUM(memcached_result_cas(&result)));
-        memcached_result_free(&result);
-        memcached_result_create(mc, &result);
+        value = rb_str_new(memcached_result_value(result), memcached_result_length(result));
+        rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(result)));
+        if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, ULL2NUM(memcached_result_cas(result)));
+        memcached_result_free(result);
         rb_hash_aset(results, key, value);
       } else {
         printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
