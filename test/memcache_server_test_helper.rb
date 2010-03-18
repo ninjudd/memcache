@@ -55,6 +55,10 @@ module MemcacheServerTestHelper
 
     expected = { 'foo bar' => '2', 'foo baz' => '8' }
     assert_equal expected, m.get(['foo bar','foo baz'])
+
+    assert_equal 'foo', m.set(' ', 'foo', 0)
+    assert_equal 'foo', m.get(' ')
+    assert_equal true, m.delete(' ')
   end
 
   def test_expiry
