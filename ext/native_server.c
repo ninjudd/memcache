@@ -311,7 +311,8 @@ static VALUE mc_cas(int argc, VALUE *argv, VALUE self) {
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "32", &key, &value, &cas, &expiry, &flags);
 
-  key   = StringValue(key);
+  key = StringValue(key);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
   value = StringValue(value);
 
   result = memcached_cas(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
@@ -337,7 +338,8 @@ VALUE mc_incr(int argc, VALUE *argv, VALUE self) {
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "11", &key, &amount);
 
-  key    = StringValue(key);
+  key = StringValue(key);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
   amount = RTEST(amount) ? NUM2INT(amount) : 1;
 
   result = memcached_increment(mc, RSTRING_PTR(key), RSTRING_LEN(key), amount, value);
@@ -360,7 +362,8 @@ VALUE mc_decr(int argc, VALUE *argv, VALUE self) {
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "11", &key, &amount);
 
-  key    = StringValue(key);
+  key = StringValue(key);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
   amount = RTEST(amount) ? NUM2INT(amount) : 1;
 
   result = memcached_decrement(mc, RSTRING_PTR(key), RSTRING_LEN(key), amount, value);
@@ -380,6 +383,8 @@ VALUE mc_delete(VALUE self, VALUE key) {
 
   Data_Get_Struct(self, memcached_st, mc);
 
+  key = StringValue(key);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
   result = memcached_delete(mc, RSTRING_PTR(key), RSTRING_LEN(key), 0);
 
   if (result == MEMCACHED_SUCCESS) {
@@ -399,7 +404,8 @@ VALUE mc_add(int argc, VALUE *argv, VALUE self) {
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "22", &key, &value, &expiry, &flags);
 
-  key   = StringValue(key);
+  key = StringValue(key);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
   value = StringValue(value);
 
   result = memcached_add(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
@@ -423,7 +429,8 @@ VALUE mc_replace(int argc, VALUE *argv, VALUE self) {
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "22", &key, &value, &expiry, &flags);
 
-  key   = StringValue(key);
+  key = StringValue(key);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
   value = StringValue(value);
 
   result = memcached_replace(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value),
@@ -445,6 +452,10 @@ VALUE mc_append(VALUE self, VALUE key, VALUE value) {
 
   Data_Get_Struct(self, memcached_st, mc);
 
+  key = StringValue(key);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
+  value = StringValue(value);
+
   result = memcached_append(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value), 0, 0);
 
   if (result == MEMCACHED_SUCCESS) {
@@ -461,6 +472,10 @@ VALUE mc_prepend(VALUE self, VALUE key, VALUE value) {
   static memcached_return_t result;
 
   Data_Get_Struct(self, memcached_st, mc);
+
+  key = StringValue(key);
+  if (!use_binary(mc)) key = escape_key(key, NULL);
+  value = StringValue(value);
 
   result = memcached_prepend(mc, RSTRING_PTR(key), RSTRING_LEN(key), RSTRING_PTR(value), RSTRING_LEN(value), 0, 0);
 
