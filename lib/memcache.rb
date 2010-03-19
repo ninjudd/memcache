@@ -98,7 +98,7 @@ class Memcache
     # Temporarily change the namespace for convenience.
     begin
       old_namespace  = self.namespace
-      self.namespace = "#{old_namespace}:#{namespace}"
+      self.namespace = old_namespace ? "#{old_namespace}:#{namespace}" : namespace
       yield
     ensure
       self.namespace = old_namespace
