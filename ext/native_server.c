@@ -48,7 +48,6 @@ static VALUE mc_alloc(VALUE klass) {
 
 static VALUE throw_error(memcached_return_t *error) {
   memcached_st *mc;
-  printf("ERROR: %s\n", memcached_strerror(mc, *error));
   switch(*error) {
   case MEMCACHED_SERVER_ERROR: rb_raise(cMemcacheServerError, "Server error");
   case MEMCACHED_CLIENT_ERROR: rb_raise(cMemcacheClientError, "Client error");
@@ -57,7 +56,7 @@ static VALUE throw_error(memcached_return_t *error) {
   case MEMCACHED_CONNECTION_SOCKET_CREATE_FAILURE:
     rb_raise(cMemcacheConnectionError, "Connection error");
   default:
-    rb_raise(cMemcacheError, "Memcache error");
+    rb_raise(cMemcacheError, "Memcache error: %s", memcached_strerror(mc, *error));
   }
   return Qnil;
 }
