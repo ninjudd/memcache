@@ -221,6 +221,14 @@ NativeServer also accepts a few other options:
          is actually Jenkins's one-at-a-time hash), the default hashing method if you
          don't specify one is <tt>:crc</tt>.
 
+[+distribution+] The libmemcached distribution method. See http://docs.tangent.org/libmemcached/index.html
+                 for more detail. One of:
+
+                 <tt>:modula :consistent :ketama</tt>
+
+                 (<tt>:modula</tt> is the default and internally, <tt>:consistent</tt> is an
+                 alias for <tt>:ketama</tt>)
+
 [+binary+] A boolean value specifying whether to use memcached's binary protocol instead
            of the default ascii protocol. This is slightly slower, but should allow you to use unicode keys.
 

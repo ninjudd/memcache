@@ -42,7 +42,13 @@ class Memcache
       native_opts[:servers] = (opts[:servers] || [ opts[:server] ]).collect do |server|
         server.is_a?(Hash) ? "#{server[:host]}:#{server[:port]}" : server
       end
-      native_opts[:hash] = opts[:hash] || :crc
+      if opts[:ketama]
+        native_opts[:hash] = :md5
+        native_opts[:distribution] = :ketama
+      else
+        native_opts[:hash] = opts[:hash] || :crc
+        native_opts[:distribution] = opts[:distribution]
+      end
       native_opts[:hash_with_prefix] = @hash_with_prefix
       native_opts[:binary] = opts[:binary]
 

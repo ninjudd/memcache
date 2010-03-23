@@ -14,6 +14,7 @@ VALUE sym_port;
 VALUE sym_prefix;
 VALUE sym_hash;
 VALUE sym_hash_with_prefix;
+VALUE sym_distribution;
 VALUE sym_binary;
 VALUE sym_servers;
 
@@ -27,6 +28,9 @@ ID id_fnv1a_32;
 ID id_jenkins;
 ID id_hsieh;
 ID id_murmur;
+ID id_modula;
+ID id_consistent;
+ID id_ketama;
 
 static ID iv_memcache_flags, iv_memcache_cas;
 
@@ -76,21 +80,34 @@ static memcached_hash_t hash_behavior(VALUE sym) {
   rb_raise(cMemcacheError, "Invalid hash behavior");
 }
 
+static memcached_hash_t distribution_behavior(VALUE sym) {
+  ID id = SYM2ID(sym);
+
+  if (id == id_modula     ) return MEMCACHED_DISTRIBUTION_MODULA;
+  if (id == id_consistent ) return MEMCACHED_DISTRIBUTION_CONSISTENT;
+  if (id == id_ketama     ) return MEMCACHED_DISTRIBUTION_CONSISTENT_KETAMA;
+  rb_raise(cMemcacheError, "Invalid distribution behavior");
+}
+
 static VALUE mc_initialize(VALUE self, VALUE opts) {
   memcached_st *mc;
-  VALUE hostv, portv, servers_aryv, prefixv, hashv;
+  VALUE hostv, portv, servers_aryv, prefixv, hashv, distributionv;
   char* host;
   char* server;
   char* hashkit;
   int   port, i;
 
   Data_Get_Struct(self, memcached_st, mc);
-  hashv        = rb_hash_aref(opts, sym_hash);
-  prefixv      = rb_hash_aref(opts, sym_prefix);
-  servers_aryv = rb_hash_aref(opts, sym_servers);
+  hashv         = rb_hash_aref(opts, sym_hash);
+  distributionv = rb_hash_aref(opts, sym_distribution);
+  prefixv       = rb_hash_aref(opts, sym_prefix);
+  servers_aryv  = rb_hash_aref(opts, sym_servers);
 
   if (!NIL_P(hashv))
     memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_HASH, hash_behavior(hashv));
+
+  if (!NIL_P(distributionv))
+    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_DISTRIBUTION, distribution_behavior(distributionv));
 
   if (RTEST( rb_hash_aref(opts, sym_hash_with_prefix) ))
     memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_HASH_WITH_PREFIX_KEY, true);
@@ -540,22 +557,26 @@ void Init_native_server() {
   sym_prefix           = ID2SYM(rb_intern("prefix"));
   sym_hash             = ID2SYM(rb_intern("hash"));
   sym_hash_with_prefix = ID2SYM(rb_intern("hash_with_prefix"));
+  sym_distribution     = ID2SYM(rb_intern("distribution"));
   sym_binary           = ID2SYM(rb_intern("binary"));
   sym_servers          = ID2SYM(rb_intern("servers"));
 
   iv_memcache_flags = rb_intern("@memcache_flags");
   iv_memcache_cas   = rb_intern("@memcache_cas");
 
-  id_default  = rb_intern("default");
-  id_md5      = rb_intern("md5");
-  id_crc      = rb_intern("crc");
-  id_fnv1_64  = rb_intern("fnv1_64");
-  id_fnv1a_64 = rb_intern("fnv1a_64");
-  id_fnv1_32  = rb_intern("fnv1_32");
-  id_fnv1a_32 = rb_intern("fnv1a_32");
-  id_jenkins  = rb_intern("jenkins");
-  id_hsieh    = rb_intern("hsieh");
-  id_murmur   = rb_intern("murmur");
+  id_default    = rb_intern("default");
+  id_md5        = rb_intern("md5");
+  id_crc        = rb_intern("crc");
+  id_fnv1_64    = rb_intern("fnv1_64");
+  id_fnv1a_64   = rb_intern("fnv1a_64");
+  id_fnv1_32    = rb_intern("fnv1_32");
+  id_fnv1a_32   = rb_intern("fnv1a_32");
+  id_jenkins    = rb_intern("jenkins");
+  id_hsieh      = rb_intern("hsieh");
+  id_murmur     = rb_intern("murmur");
+  id_modula     = rb_intern("modula");
+  id_consistent = rb_intern("consistent");
+  id_ketama     = rb_intern("ketama");
 
   cMemcache = rb_define_class("Memcache", rb_cObject);
 
