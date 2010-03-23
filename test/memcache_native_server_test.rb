@@ -17,9 +17,11 @@ class MemcacheNativeServerTest < Test::Unit::TestCase
     m = Memcache::NativeServer.new(:servers => ["localhost:9998"])
 
     assert_equal nil, m.get('foo')
-    assert_raise(Memcache::Error) do
+
+    e = assert_raise(Memcache::Error) do
       m.set('foo', 'foo')
     end
+    assert_match 'SYSTEM ERROR', e.message
   end
 
   def test_close
