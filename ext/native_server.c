@@ -38,8 +38,7 @@ static VALUE mc_alloc(VALUE klass) {
   memcached_st *mc;
   VALUE obj;
 
-  mc  = memcached_create(NULL);
-/*   memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_VERIFY_KEY, true); */
+  mc = memcached_create(NULL);
   memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_CACHE_LOOKUPS, true);
 
   obj = Data_Wrap_Struct(klass, 0, mc_free, mc);

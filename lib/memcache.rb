@@ -239,6 +239,13 @@ class Memcache
     end
   end
 
+  def add_or_get(key, value, opts = {})
+    # Try to add, but if that fails, get the existing value.
+    add(key, value, opts)
+  rescue Memcache::Error
+    get(key)
+  end
+
   def get_some(keys, opts = {})
     keys = keys.collect {|key| key.to_s}
     records = opts[:disable] ? {} : self.multi_get(keys, opts)
@@ -249,10 +256,10 @@ class Memcache
     end
 
     keys_to_fetch = keys - records.keys
-    method = opts[:overwrite] ? :set : :add
+    method = opts[:overwrite] ? :set : :add_or_get
     if keys_to_fetch.any?
       yield(keys_to_fetch).each do |key, value|
-        self.send(method, key, value, opts) unless opts[:disable] or opts[:disable_write]
+        value = self.send(method, key, value, opts) unless opts[:disable] or opts[:disable_write]
         records[key] = value
       end
     end
