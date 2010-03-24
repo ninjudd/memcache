@@ -11,12 +11,15 @@ VALUE cMemcacheClientError;
 VALUE cMemcacheConnectionError;
 VALUE sym_host;
 VALUE sym_port;
+VALUE sym_weight;
 VALUE sym_prefix;
 VALUE sym_hash;
 VALUE sym_hash_with_prefix;
 VALUE sym_distribution;
 VALUE sym_binary;
 VALUE sym_servers;
+VALUE sym_ketama;
+VALUE sym_ketama_weighted;
 
 ID id_default;
 ID id_md5;
@@ -31,6 +34,7 @@ ID id_murmur;
 ID id_modula;
 ID id_consistent;
 ID id_ketama;
+ID id_ketama_spy;
 
 static ID iv_memcache_flags, iv_memcache_cas;
 
@@ -86,16 +90,13 @@ static memcached_hash_t distribution_behavior(VALUE sym) {
   if (id == id_modula     ) return MEMCACHED_DISTRIBUTION_MODULA;
   if (id == id_consistent ) return MEMCACHED_DISTRIBUTION_CONSISTENT;
   if (id == id_ketama     ) return MEMCACHED_DISTRIBUTION_CONSISTENT_KETAMA;
+  if (id == id_ketama_spy ) return MEMCACHED_DISTRIBUTION_CONSISTENT_KETAMA_SPY;
   rb_raise(cMemcacheError, "Invalid distribution behavior");
 }
 
 static VALUE mc_initialize(VALUE self, VALUE opts) {
   memcached_st *mc;
-  VALUE hostv, portv, servers_aryv, prefixv, hashv, distributionv;
-  char* host;
-  char* server;
-  char* hashkit;
-  int   port, i;
+  VALUE servers_aryv, prefixv, hashv, distributionv;
 
   Data_Get_Struct(self, memcached_st, mc);
   hashv         = rb_hash_aref(opts, sym_hash);
@@ -103,11 +104,19 @@ static VALUE mc_initialize(VALUE self, VALUE opts) {
   prefixv       = rb_hash_aref(opts, sym_prefix);
   servers_aryv  = rb_hash_aref(opts, sym_servers);
 
-  if (!NIL_P(hashv))
-    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_HASH, hash_behavior(hashv));
+  if (!NIL_P(hashv)) {
+    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_HASH,        hash_behavior(hashv));
+    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_KETAMA_HASH, hash_behavior(hashv));
+  }
 
   if (!NIL_P(distributionv))
-    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_DISTRIBUTION, distribution_behavior(distributionv));
+    memcached_behavior_set_distribution(mc, distribution_behavior(distributionv));
+
+  if (RTEST( rb_hash_aref(opts, sym_ketama) ))
+    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_KETAMA, true);
+
+  if (RTEST( rb_hash_aref(opts, sym_ketama_weighted) ))
+    memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_KETAMA_WEIGHTED, true);
 
   if (RTEST( rb_hash_aref(opts, sym_hash_with_prefix) ))
     memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_HASH_WITH_PREFIX_KEY, true);
@@ -119,17 +128,26 @@ static VALUE mc_initialize(VALUE self, VALUE opts) {
     memcached_callback_set(mc, MEMCACHED_CALLBACK_PREFIX_KEY, STR2CSTR(prefixv));
 
   if (!NIL_P(servers_aryv)) {
+    char* server;
+    int i;
+
     for (i = 0; i < RARRAY(servers_aryv)->len; i++) {
       server    = StringValuePtr(RARRAY(servers_aryv)->ptr[i]);
       memcached_server_push(mc, memcached_servers_parse(server));
     }
   } else {
-    hostv = rb_hash_aref(opts, sym_host);
-    portv = rb_hash_aref(opts, sym_port);
-    host  = StringValuePtr(hostv);
-    port  = NIL_P(portv) ? MEMCACHED_DEFAULT_PORT : NUM2INT(portv);
+    VALUE hostv, portv, weightv;
+    char* host;
+    int   port, weight;
 
-    memcached_server_add(mc, host, port);
+    hostv   = rb_hash_aref(opts, sym_host);
+    portv   = rb_hash_aref(opts, sym_port);
+    weightv = rb_hash_aref(opts, sym_weight);
+    host    = StringValuePtr(hostv);
+    port    = NIL_P(portv) ? MEMCACHED_DEFAULT_PORT : NUM2INT(portv);
+    weight  = NIL_P(weightv) ? 0 : NUM2INT(weightv);
+
+    memcached_server_add_with_weight(mc, StringValuePtr(hostv), port, weight);
   }
 
   return self;
@@ -554,12 +572,15 @@ VALUE mc_close(VALUE self) {
 void Init_native_server() {
   sym_host             = ID2SYM(rb_intern("host"));
   sym_port             = ID2SYM(rb_intern("port"));
+  sym_weight           = ID2SYM(rb_intern("weight"));
   sym_prefix           = ID2SYM(rb_intern("prefix"));
   sym_hash             = ID2SYM(rb_intern("hash"));
   sym_hash_with_prefix = ID2SYM(rb_intern("hash_with_prefix"));
   sym_distribution     = ID2SYM(rb_intern("distribution"));
   sym_binary           = ID2SYM(rb_intern("binary"));
   sym_servers          = ID2SYM(rb_intern("servers"));
+  sym_ketama           = ID2SYM(rb_intern("ketama"));
+  sym_ketama_weighted  = ID2SYM(rb_intern("ketama_weighted"));
 
   iv_memcache_flags = rb_intern("@memcache_flags");
   iv_memcache_cas   = rb_intern("@memcache_cas");
@@ -577,6 +598,7 @@ void Init_native_server() {
   id_modula     = rb_intern("modula");
   id_consistent = rb_intern("consistent");
   id_ketama     = rb_intern("ketama");
+  id_ketama_spy = rb_intern("ketama_spy");
 
   cMemcache = rb_define_class("Memcache", rb_cObject);
 
