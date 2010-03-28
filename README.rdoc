@@ -243,4 +243,6 @@ NativeServer also accepts a few other options:
 
 == License:
 
-Copyright (c) 2010 Justin Balthrop, Geni.com; Published under The MIT License, see LICENSE
+Copyright (c) 2010 Justin Balthrop, Geni.com; Published under The MIT License, see the LICENSE file.
+
+Portions of ext/extconf.rb Copyright (c) 2010 Cloudburst, LLC, licensed under the AFL3 license, and used with permission; see the ext/LICENSE_AFL3 file.

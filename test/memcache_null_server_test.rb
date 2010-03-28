@@ -1,4 +1,5 @@
 require 'test/unit'
+require File.dirname(__FILE__) + '/../lib/memcache/base'
 require File.dirname(__FILE__) + '/../lib/memcache/null_server'
 
 class MemcacheNullServerTest < Test::Unit::TestCase
