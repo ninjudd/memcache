@@ -67,14 +67,6 @@ changes:
    cache.get('foo', :raw => true).memcache_flags.to_s(2)
    => "1111111100001000"
 
-- +incr+ and +decr+ automatically initialize the value to 0 if the key doesn't
-  exist. The +count+ method returns the integer count associated with a given key.
-
-   cache.count('hits')    # => 0
-   cache.incr('hits', 52) # => 52
-   cache.decr('hits', 9)  # => 43
-   cache.count('hits')    # => 43
-
 - In addition to +add+, which was already supported, support has been added for +replace+,
   +append+ and +prepend+ from the memcached protocol.
 
@@ -107,7 +99,7 @@ changes:
    => "modified"
 
 - Several additional convenience methods have been added including +get_or_add+,
-  +get_or_set+, +update+, +get_some+, +lock+, +unlock+, and +with_lock+.
+  +get_or_set+, +add_or_get+, +update+, +get_some+, +lock+, +unlock+, and +with_lock+.
 
 === Implementation
 
