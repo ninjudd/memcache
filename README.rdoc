@@ -3,7 +3,9 @@
 This is the Geni memcached client. It started out as a fork of fiveruns/memcache-client,
 which was a fork of seattle.rb's memcache-client, but over time, our client has diverged,
 and I've rewritten the majority of the code. Of course, a lot of credit is due to those
-whose code served as a starting point for this code.
+whose code served as a starting point for this code. Also, thanks to Evan Weaver for the
+idea to include the libmemcached source and the code to make it compile when installing
+the gem.
 
 == Usage
 
@@ -245,4 +247,4 @@ NativeServer also accepts a few other options:
 
 Copyright (c) 2010 Justin Balthrop, Geni.com; Published under The MIT License, see the LICENSE file.
 
-Portions of ext/extconf.rb Copyright (c) 2010 Cloudburst, LLC, licensed under the AFL3 license, and used with permission; see the ext/LICENSE_AFL3 file.
+ext/extconf.rb Copyright (c) 2010 Cloudburst, LLC, licensed under the AFL3 license, and used with permission; see the ext/LICENSE_AFL3 file.
