@@ -1,6 +1,11 @@
 require 'mkmf'
 require 'rbconfig'
 
+# Attribution Notice:
+# ===================
+# This code was derived from Evan's Weaver memcached library: http://github.com/fauna/memcached
+# It uses the AFL3 License (text at the end of this file).
+
 HERE        = File.expand_path(File.dirname(__FILE__))
 BUNDLE      = Dir.glob("libmemcached-*.tar.gz").first
 BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
@@ -48,11 +53,6 @@ if !ENV["EXTERNAL_LIB"]
 end
 
 create_makefile('memcache/native_server')
-
-# Attribution Notice:
-# ===================
-# The above code was taken from Evan's Weaver memcached library: http://github.com/fauna/memcached
-# It uses the AFL3 License, see below:
 
 __END__
 
