@@ -230,9 +230,9 @@ NativeServer also accepts a few other options:
                  is an alias for <tt>:ketama</tt>, and <tt>:ketama_spy</tt> provides
                  compatibility with the SPY Memcached client for Java.
 
-[+ketama] Sets the default distribution to <tt>:ketama</tt> and hash to <tt>:md5</tt>.
+[+ketama+] Sets the default distribution to <tt>:ketama</tt> and hash to <tt>:md5</tt>.
 
-[+ketama_wieghted] Enables ketama weighting and sets the default distribution to <tt>:ketama</tt> and hash to <tt>:md5</tt>.
+[+ketama_wieghted+] Enables ketama weighting and sets the default distribution to <tt>:ketama</tt> and hash to <tt>:md5</tt>.
 
 [+binary+] A boolean value specifying whether to use memcached's binary protocol instead
            of the default ascii protocol. This is slightly slower, but should allow you to use unicode keys.
