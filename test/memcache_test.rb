@@ -112,6 +112,14 @@ class MemcacheTest < Test::Unit::TestCase
     end
   end
 
+  def test_add_or_get
+    100.times do |i|
+      assert_equal [i, :foo], m.add_or_get("FOO#{i}", [i, :foo])
+      assert_equal nil,       m.add("FOO#{i}", [i, :bar])
+      assert_equal [i, :foo], m.add_or_get("FOO#{i}", [i, :baz])
+    end
+  end
+
   def test_update
     100.times do |i|
       m.set("foo#{i}", [:foo, i])

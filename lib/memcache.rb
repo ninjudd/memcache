@@ -240,9 +240,7 @@ class Memcache
 
   def add_or_get(key, value, opts = {})
     # Try to add, but if that fails, get the existing value.
-    add(key, value, opts)
-  rescue Memcache::Error
-    get(key)
+    add(key, value, opts) || get(key)
   end
 
   def get_some(keys, opts = {})
