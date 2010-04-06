@@ -417,7 +417,7 @@ protected
   def server(key)
     return @server if @server
 
-    key = "#{namespace}:#{key}" if @hash_with_prefix
+    key = "#{namespace}:#{key}" if @hash_with_prefix and namespace
     hash = (Zlib.crc32(key) >> 16) & 0x7fff
     servers[hash % servers.length]
   end
