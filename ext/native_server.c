@@ -131,8 +131,8 @@ static VALUE mc_initialize(VALUE self, VALUE opts) {
     char* server;
     int i;
 
-    for (i = 0; i < RARRAY(servers_aryv)->len; i++) {
-      server    = StringValuePtr(RARRAY(servers_aryv)->ptr[i]);
+    for (i = 0; i < RARRAY_LEN(servers_aryv); i++) {
+      server    = StringValuePtr(RARRAY_PTR(servers_aryv)[i]);
       memcached_server_push(mc, memcached_servers_parse(server));
     }
   } else {
@@ -153,6 +153,12 @@ static VALUE mc_initialize(VALUE self, VALUE opts) {
   return self;
 }
 
+#ifdef RUBY_19
+#define RSTRING_SET_LEN(str, newlen) (rb_str_set_len(str, new_len))
+#else
+#define RSTRING_SET_LEN(str, newlen) (RSTRING(str)->len = new_len)
+#endif
+
 static VALUE escape_key(VALUE key, bool* escaped) {
   char*    str = RSTRING_PTR(key);
   uint16_t len = RSTRING_LEN(key);
@@ -170,7 +176,7 @@ static VALUE escape_key(VALUE key, bool* escaped) {
   } else {
     if (escaped) *escaped = true;
     key = rb_str_buf_new(new_len);
-    RSTRING(key)->len = new_len;
+    RSTRING_SET_LEN(key, new_len);
     new_str = RSTRING_PTR(key);
 
     for (i = 0, j = 0; i < len; i++, j++) {
@@ -209,7 +215,7 @@ static VALUE unescape_key(const char* str, uint16_t len) {
     key = rb_str_new(str, len);
   } else {
     key = rb_str_buf_new(new_len);
-    RSTRING(key)->len = new_len;
+    RSTRING_SET_LEN(key, new_len);
     new_str = RSTRING_PTR(key);
 
     for (i = 0, j = 0; i < len; j++, i++) {
@@ -279,8 +285,8 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
 
     key_strings = (const char**) malloc(num_keys * sizeof(char *));
     key_lengths = (size_t *) malloc(num_keys * sizeof(size_t));
-    for (i = 0; i < RARRAY(keys)->len; i++) {
-      key = RARRAY(keys)->ptr[i];
+    for (i = 0; i < RARRAY_LEN(keys); i++) {
+      key = RARRAY_PTR(keys)[i];
       if (!use_binary(mc)) key = escape_key(key, &escaped);
 
       key_lengths[i] = RSTRING_LEN(key);
