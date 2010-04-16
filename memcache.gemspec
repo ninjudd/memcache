@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{memcache}
-  s.version = "1.2.10"
+  s.version = "1.2.11"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Justin Balthrop"]
-  s.date = %q{2010-04-12}
+  s.date = %q{2010-04-15}
   s.description = %q{Ruby client for memcached supporting advanced protocol features and pluggable architecture.}
   s.email = %q{code@justinbalthrop.com}
   s.extensions = ["ext/extconf.rb"]
