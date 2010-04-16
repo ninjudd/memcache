@@ -50,4 +50,5 @@ if !ENV["EXTERNAL_LIB"]
   $LIBS << " -lmemcached_gem"
 end
 
+$CPPFLAGS += " -DRUBY_19" if RUBY_VERSION =~ /1.9/
 create_makefile('memcache/native_server')

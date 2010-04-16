@@ -54,7 +54,6 @@ static VALUE mc_alloc(VALUE klass) {
 }
 
 static VALUE throw_error(memcached_return_t *error) {
-  memcached_st *mc;
   switch(*error) {
   case MEMCACHED_SERVER_ERROR: rb_raise(cMemcacheServerError, "Server error");
   case MEMCACHED_CLIENT_ERROR: rb_raise(cMemcacheClientError, "Client error");
@@ -63,7 +62,7 @@ static VALUE throw_error(memcached_return_t *error) {
   case MEMCACHED_CONNECTION_SOCKET_CREATE_FAILURE:
     rb_raise(cMemcacheConnectionError, "Connection error");
   default:
-    rb_raise(cMemcacheError, "Memcache error: %s", memcached_strerror(mc, *error));
+    rb_raise(cMemcacheError, "Memcache error: %s", memcached_strerror(NULL, *error));
   }
   return Qnil;
 }
@@ -242,7 +241,7 @@ static bool use_binary(memcached_st* mc) {
 
 static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
-  VALUE cas, keys, results, key, escaped_key, value;
+  VALUE cas, keys, results, key, value;
   VALUE scalar_key = Qnil;
   memcached_return status;
 
@@ -271,6 +270,7 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
       return value;
     } else {
       printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
+      return Qnil;
     }
   } else {
     memcached_result_st* result;
@@ -372,19 +372,20 @@ VALUE mc_incr(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, amount;
   static memcached_return_t result;
-  uint64_t *value;
+  unsigned int offset;
+  uint64_t value;
 
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "11", &key, &amount);
 
   key = StringValue(key);
   if (!use_binary(mc)) key = escape_key(key, NULL);
-  amount = RTEST(amount) ? NUM2INT(amount) : 1;
+  offset = RTEST(amount) ? NUM2INT(amount) : 1;
 
-  result = memcached_increment(mc, RSTRING_PTR(key), RSTRING_LEN(key), amount, value);
+  result = memcached_increment(mc, RSTRING_PTR(key), RSTRING_LEN(key), offset, &value);
 
   if (result == MEMCACHED_SUCCESS) {
-    return LONG2NUM(*value);
+    return LONG2NUM(value);
   } else if (result == MEMCACHED_NOTFOUND) {
     return Qnil;
   } else {
@@ -396,19 +397,20 @@ VALUE mc_decr(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
   VALUE key, amount;
   static memcached_return_t result;
-  uint64_t *value;
+  unsigned int offset;
+  uint64_t value;
 
   Data_Get_Struct(self, memcached_st, mc);
   rb_scan_args(argc, argv, "11", &key, &amount);
 
   key = StringValue(key);
   if (!use_binary(mc)) key = escape_key(key, NULL);
-  amount = RTEST(amount) ? NUM2INT(amount) : 1;
+  offset = RTEST(amount) ? NUM2INT(amount) : 1;
 
-  result = memcached_decrement(mc, RSTRING_PTR(key), RSTRING_LEN(key), amount, value);
+  result = memcached_decrement(mc, RSTRING_PTR(key), RSTRING_LEN(key), offset, &value);
 
   if (result == MEMCACHED_SUCCESS) {
-    return LONG2NUM(*value);
+    return LONG2NUM(value);
   } else if (result == MEMCACHED_NOTFOUND) {
     return Qnil;
   } else {
@@ -573,6 +575,7 @@ VALUE mc_close(VALUE self) {
   memcached_st *mc;
   Data_Get_Struct(self, memcached_st, mc);
   memcached_quit(mc);
+  return Qnil;
 }
 
 void Init_native_server() {
