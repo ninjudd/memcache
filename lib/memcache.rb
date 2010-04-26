@@ -124,8 +124,13 @@ class Memcache
     end
   end
 
-  def read(keys, opts = {})
-    get(keys, opts.merge(:raw => true))
+  def read(key, opts = nil)
+    opts ||= {}
+    get(key, opts.merge(:raw => true))
+  end
+
+  def read_multi(*keys)
+    get(keys)
   end
 
   def set(key, value, opts = {})
@@ -140,7 +145,8 @@ class Memcache
     value
   end
 
-  def write(key, value, opts = {})
+  def write(key, value, opts = nil)
+    opts ||= {}
     set(key, value, opts.merge(:raw => true))
   end
 
