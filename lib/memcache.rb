@@ -259,10 +259,10 @@ class Memcache
     end
 
     keys_to_fetch = keys - records.keys
-    method = opts[:overwrite] ? :set : :add_or_get
+    method = opts[:overwrite] ? :set : :add
     if keys_to_fetch.any?
       yield(keys_to_fetch).each do |key, value|
-        value = self.send(method, key, value, opts) unless opts[:disable] or opts[:disable_write]
+        self.send(method, key, value, opts) unless opts[:disable] or opts[:disable_write]
         records[key] = value
       end
     end
