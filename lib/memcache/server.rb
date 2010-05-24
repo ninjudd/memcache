@@ -216,7 +216,7 @@ class Memcache
     end
 
     def read_command(command, &block)
-      raise ConnectionError, "Server dead, will retry at #{retry_at}" unless alive?
+      raise ConnectionError, "Server #{name} dead, will retry at #{retry_at}" unless alive?
       send_command(command) do |response|
         while response do
           return if response == "END\r\n"
