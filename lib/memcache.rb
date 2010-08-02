@@ -262,7 +262,12 @@ class Memcache
     method = opts[:overwrite] ? :set : :add
     if keys_to_fetch.any?
       yield(keys_to_fetch).each do |key, value|
-        self.send(method, key, value, opts) unless opts[:disable] or opts[:disable_write]
+        begin
+          self.send(method, key, value, opts) unless opts[:disable] or opts[:disable_write]
+        rescue Memcache::Error => e
+          raise if opts[:strict_write]
+          $stderr.puts "Memcache error in get_some: #{e.class} #{e.to_s} on key '#{key}' while storing value: #{value}"
+        end
         records[key] = value
       end
     end
@@ -414,7 +419,7 @@ protected
     object.memcache_cas   = value.memcache_cas
     object
   rescue Exception => e
-    puts "Memcache read error: #{e.class} #{e.to_s} on key '#{key}' while unmarshalling value: #{value}"
+    $stderr.puts "Memcache read error: #{e.class} #{e.to_s} on key '#{key}' while unmarshalling value: #{value}"
     nil
   end
 
