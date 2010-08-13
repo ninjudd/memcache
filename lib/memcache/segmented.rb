@@ -4,7 +4,9 @@ class Memcache
   module Segmented
     MAX_SIZE = 1000000 # bytes
     PARTIAL_VALUE = 0x40000000
-
+    
+    alias :super_get :get
+    
     def get(keys, cas = nil)
       return get([keys], cas)[keys.to_s] unless keys.kind_of?(Array)
       return {} if keys.empty?
@@ -12,17 +14,9 @@ class Memcache
       results = super(keys, cas)
       keys = {}
       keys_to_fetch = []
-      results.each do |key, value|
-        next unless segmented?(value)
-        hash, num = value.split(':')
-        keys[key] = []
-        num.to_i.times do |i|
-          hash_key = "#{hash}:#{i}"
-          keys_to_fetch << hash_key
-          keys[key]     << hash_key
-        end
-      end
 
+      extract_keys(results, keys_to_fetch, keys)
+      
       parts = super(keys_to_fetch)
       keys.each do |key, hashes|
         value = ''
@@ -43,10 +37,21 @@ class Memcache
       end
       results
     end
+    
+    def delete(keys, cas = nil)
+      return delete([keys], cas) unless keys.kind_of?(Array)
+      return {} if keys.empty?
+
+      results = super_get(keys, cas)
+      keys_to_fetch = keys     
+      extract_keys(results, keys_to_fetch)
+      keys_to_fetch.each{|k| super k}
+    end
 
     def set(key, value, expiry = 0, flags = 0)
-      hash, flags = store_segments(key, value, expiry, flags)
-      super(key, hash, expiry, flags) && value
+      delete key if !(super_get(key)).nil?
+      value, flags = store_segments(key, value, expiry, flags)
+      super(key, value, expiry, flags) && value
     end
 
     def cas(key, value, cas, expiry = 0, flags = 0)
@@ -94,6 +99,20 @@ class Memcache
         [value, flags]
       end
     end
+    
+    def extract_keys(results, keys_to_fetch, keys=nil)
+      results.each do |key, value|
+        next unless segmented?(value)
+        hash, num = value.split(':')
+        keys[key] = [] unless keys.nil?
+        num.to_i.times do |i|
+          hash_key = "#{hash}:#{i}"
+          keys_to_fetch << hash_key
+          keys[key]     << hash_key unless keys.nil?
+        end
+      end
+    end
+    
   end
 
   class SegmentedServer < Server

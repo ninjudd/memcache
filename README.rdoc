@@ -3,9 +3,9 @@
 This is the Geni memcached client. It started out as a fork of fiveruns/memcache-client,
 which was a fork of seattle.rb's memcache-client, but over time, our client has diverged,
 and I've rewritten the majority of the code. Of course, a lot of credit is due to those
-whose code served as a starting point for this code. Also, thanks to Evan Weaver for the
-idea to include the libmemcached source and the code to make it compile when installing
-the gem.
+whose code served as a starting point for this code. Thanks to fauna for the idea to
+include the libmemcached source and the code to make it compile when installing the
+gem. Thanks to develon for the improvements to SegementedServer.
 
 == Usage
 
