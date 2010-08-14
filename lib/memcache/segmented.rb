@@ -4,9 +4,7 @@ class Memcache
   module Segmented
     MAX_SIZE = 1000000 # bytes
     PARTIAL_VALUE = 0x40000000
-    
-    alias :super_get :get
-    
+
     def get(keys, cas = nil)
       return get([keys], cas)[keys.to_s] unless keys.kind_of?(Array)
       return {} if keys.empty?
@@ -14,9 +12,12 @@ class Memcache
       results = super(keys, cas)
       keys = {}
       keys_to_fetch = []
+      results.each do |key, value|
+        next unless segmented?(value)
+        keys[key] = segment_keys(value)
+        keys_to_fetch.concat keys[key]
+      end
 
-      extract_keys(results, keys_to_fetch, keys)
-      
       parts = super(keys_to_fetch)
       keys.each do |key, hashes|
         value = ''
@@ -37,26 +38,19 @@ class Memcache
       end
       results
     end
-    
-    def delete(keys, cas = nil)
-      return delete([keys], cas) unless keys.kind_of?(Array)
-      return {} if keys.empty?
-
-      results = super_get(keys, cas)
-      keys_to_fetch = keys     
-      extract_keys(results, keys_to_fetch)
-      keys_to_fetch.each{|k| super k}
-    end
 
     def set(key, value, expiry = 0, flags = 0)
-      delete key if !(super_get(key)).nil?
-      value, flags = store_segments(key, value, expiry, flags)
-      super(key, value, expiry, flags) && value
+      delete(key) do
+        hash, flags = store_segments(key, value, expiry, flags)
+        super(key, hash, expiry, flags) && value
+      end
     end
 
     def cas(key, value, cas, expiry = 0, flags = 0)
-      hash, flags = store_segments(key, value, expiry, flags)
-      super(key, hash, cas, expiry, flags) && value
+      delete(key) do
+        hash, flags = store_segments(key, value, expiry, flags)
+        super(key, hash, cas, expiry, flags) && value
+      end
     end
 
     def add(key, value, expiry = 0, flags = 0)
@@ -65,8 +59,19 @@ class Memcache
     end
 
     def replace(key, value, expiry = 0, flags = 0)
-      hash, flags = store_segments(key, value, expiry, flags)
-      super(key, hash, expiry, flags) && value
+      delete(key) do
+        hash, flags = store_segments(key, value, expiry, flags)
+        super(key, hash, expiry, flags) && value
+      end
+    end
+
+    def delete(key)
+      value  = super_get(key)
+      result = block_given? ? yield : super
+      if result and segmented?(value)
+        segment_keys(value).each {|k| super(k)}
+      end
+      result
     end
 
   private
@@ -99,20 +104,18 @@ class Memcache
         [value, flags]
       end
     end
-    
-    def extract_keys(results, keys_to_fetch, keys=nil)
-      results.each do |key, value|
-        next unless segmented?(value)
-        hash, num = value.split(':')
-        keys[key] = [] unless keys.nil?
-        num.to_i.times do |i|
-          hash_key = "#{hash}:#{i}"
-          keys_to_fetch << hash_key
-          keys[key]     << hash_key unless keys.nil?
-        end
+
+    def segment_keys(value)
+      hash, num = value.split(':')
+      (0...num.to_i).collect {|i| "#{hash}:#{i}"}
+    end
+
+    def self.included(klass)
+      super_get = klass.ancestors[2].instance_method(:get)
+      klass.send(:define_method, :super_get) do |key|
+        super_get.bind(self).call([key])[key]
       end
     end
-    
   end
 
   class SegmentedServer < Server
