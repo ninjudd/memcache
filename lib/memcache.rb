@@ -108,7 +108,7 @@ class Memcache
     raise 'opts must be hash' unless opts.instance_of?(Hash)
 
     if keys.instance_of?(Array)
-      keys.collect! {|key| key.to_s}
+      keys = keys.collect {|key| key.to_s}
       multi_get(keys, opts)
     else
       key = keys.to_s
