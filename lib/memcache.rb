@@ -196,7 +196,8 @@ class Memcache
   end
 
   def count(key)
-    get(key, :raw => true).to_i
+    value = get(key, :raw => true)
+    value.to_i if value
   end
 
   def incr(key, amount = 1)
