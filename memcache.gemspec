@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{memcache}
-  s.version = "1.2.12"
+  s.version = "1.2.13"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Justin Balthrop"]
-  s.date = %q{2010-05-10}
+  s.date = %q{2010-08-31}
   s.description = %q{Ruby client for memcached supporting advanced protocol features and pluggable architecture.}
   s.email = %q{code@justinbalthrop.com}
   s.extensions = ["ext/extconf.rb"]
@@ -43,6 +43,7 @@ Gem::Specification.new do |s|
      "test/memcache_pg_server_test.rb",
      "test/memcache_segmented_native_server_test.rb",
      "test/memcache_segmented_server_test.rb",
+     "test/memcache_segmented_test_helper.rb",
      "test/memcache_server_test.rb",
      "test/memcache_server_test_helper.rb",
      "test/memcache_test.rb",
@@ -51,7 +52,7 @@ Gem::Specification.new do |s|
   s.homepage = %q{http://github.com/ninjudd/memcache}
   s.rdoc_options = ["--charset=UTF-8"]
   s.require_paths = ["lib"]
-  s.rubygems_version = %q{1.3.5}
+  s.rubygems_version = %q{1.3.7}
   s.summary = %q{Advanced ruby memcache client}
   s.test_files = [
     "test/memcache_local_server_test.rb",
@@ -60,6 +61,7 @@ Gem::Specification.new do |s|
      "test/memcache_pg_server_test.rb",
      "test/memcache_segmented_native_server_test.rb",
      "test/memcache_segmented_server_test.rb",
+     "test/memcache_segmented_test_helper.rb",
      "test/memcache_server_test.rb",
      "test/memcache_server_test_helper.rb",
      "test/memcache_test.rb",
@@ -70,7 +72,7 @@ Gem::Specification.new do |s|
     current_version = Gem::Specification::CURRENT_SPECIFICATION_VERSION
     s.specification_version = 3
 
-    if Gem::Version.new(Gem::RubyGemsVersion) >= Gem::Version.new('1.2.0') then
+    if Gem::Version.new(Gem::VERSION) >= Gem::Version.new('1.2.0') then
     else
     end
   else
