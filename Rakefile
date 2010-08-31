@@ -59,12 +59,14 @@ Rake::RDocTask.new do |rdoc|
   rdoc.rdoc_files.include('lib/**/*.rb')
 end
 
-namespace :test do
+namespace :test => 'lib/memcache/native_server.o' do
   Rake::TestTask.new(:native) do |t|
-    `cd ext && make && cp native_server.bundle native_server.o ../lib/memcache/`
     t.libs << 'test'
     t.pattern = 'test/memcache_*native_server_test.rb'
     t.verbose
   end
 end
 
+file 'lib/memcache/native_server.o' do
+  `cd ext && ruby extconf.rb && make && cp native_server.bundle native_server.o ../lib/memcache/`
+end
