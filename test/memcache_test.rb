@@ -157,6 +157,31 @@ class MemcacheTest < Test::Unit::TestCase
     end
   end
 
+  def test_get_some_with_validation
+    100.times do |i|
+      m.set(i.to_s, i.odd? ? -i : i)
+    end
+    keys = (0...100).collect {|key| key.to_s}
+
+    results = m.get_some(keys, :validation => lambda {|k,v| k.to_i == v}) do |missing_keys|
+      assert_equal 50, missing_keys.size
+      r = {}
+      missing_keys.each do |key|
+        r[key] = key.to_i
+      end
+      r
+    end
+    assert_equal 100, results.size
+
+    results.each do |key, value|
+      assert_equal key.to_i, value
+    end
+
+    results = m.get_some(keys, :validation => lambda {|k,v| k.to_i == v}) do |missing_keys|
+      flunk "no values should be invalid"
+    end
+  end
+
   def test_get_with_reset_expiry
     m.add('foo', 'quick brown fox', :expiry => 1)
     assert_equal 'quick brown fox', m.get('foo', :expiry => 2)
