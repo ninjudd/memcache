@@ -124,7 +124,7 @@ static VALUE mc_initialize(VALUE self, VALUE opts) {
     memcached_behavior_set(mc, MEMCACHED_BEHAVIOR_BINARY_PROTOCOL, true);
 
   if (!NIL_P(prefixv))
-    memcached_callback_set(mc, MEMCACHED_CALLBACK_PREFIX_KEY, STR2CSTR(prefixv));
+    memcached_callback_set(mc, MEMCACHED_CALLBACK_PREFIX_KEY, StringValuePtr(prefixv));
 
   if (!NIL_P(servers_aryv)) {
     char* server;
@@ -555,7 +555,7 @@ VALUE mc_set_prefix(VALUE self, VALUE prefix) {
     result = memcached_callback_set(mc, MEMCACHED_CALLBACK_PREFIX_KEY, NULL);
   } else {
     prefix = StringValue(prefix);
-    result = memcached_callback_set(mc, MEMCACHED_CALLBACK_PREFIX_KEY, STR2CSTR(prefix));
+    result = memcached_callback_set(mc, MEMCACHED_CALLBACK_PREFIX_KEY, StringValuePtr(prefix));
   }
   return prefix;
 }
