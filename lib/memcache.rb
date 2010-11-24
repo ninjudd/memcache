@@ -346,7 +346,7 @@ class Memcache
   end
 
   def self.init(yaml_file = nil)
-    yaml_file = File.join(Rails.root, 'config', 'memcached.yml')
+    yaml_file ||= File.join(Rails.root, 'config', 'memcached.yml')
 
     if File.exists?(yaml_file)
       yaml = YAML.load_file(yaml_file)
@@ -360,7 +360,9 @@ class Memcache
         else
           config.each do |connection, opts|
             opts = defaults.merge(opts.symbolize_keys)
-            Memcache.pool[connection] = Memcache.new(opts)
+            if not opts.empty? and not opts[:disabled]
+              Memcache.pool[connection] = Memcache.new(opts)
+            end
           end
         end
       end
