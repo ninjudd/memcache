@@ -30,7 +30,7 @@ class Memcache
     end
 
     def alive?
-      @retry_at.nil? or @retry_at < Time.now
+      not instance_variable_defined?(:@retry_at) or @retry_at.nil? or @retry_at < Time.now
     end
 
     def strict_reads?
@@ -231,7 +231,7 @@ class Memcache
     end
 
     def socket
-      if @socket.nil? or @socket.closed?
+      if not instance_variable_defined?(:@socket) or @socket.nil? or @socket.closed?
         # Attempt to connect.
         @socket = timeout(CONNECT_TIMEOUT) do
           TCPSocket.new(host, port)
