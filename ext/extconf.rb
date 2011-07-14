@@ -40,13 +40,22 @@ if !ENV["EXTERNAL_LIB"]
       system("rm -rf #{BUNDLE_PATH}") unless ENV['DEBUG'] or ENV['DEV']
     end
   end
-
+  
   # Absolutely prevent the linker from picking up any other libmemcached
-  Dir.chdir("#{HERE}/lib") do
-    system('cp -f libmemcached.a  libmemcached_gem.a')
-    system('cp -f libmemcached.la libmemcached_gem.la')
+  if File.exists?("#{HERE}/lib/amd64/libmemcached.a")
+    # fix linking issue under solaris
+    # https://github.com/ninjudd/memcache/issues/5
+    Dir.chdir("#{HERE}/lib/amd64") do
+      system('cp -f libmemcached.a  ../libmemcached_gem.a')
+      system('cp -f libmemcached.la ../libmemcached_gem.la')
+    end
+  else
+    Dir.chdir("#{HERE}/lib") do
+      system('cp -f libmemcached.a  libmemcached_gem.a')
+      system('cp -f libmemcached.la libmemcached_gem.la')
+    end
   end
-
+  
   $LIBS << " -lmemcached_gem"
 end
 
