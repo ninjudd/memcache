@@ -201,12 +201,16 @@ class Memcache
   end
 
   def incr(key, amount = 1)
+    return decr(key, -amount) if amount < 0
+
     key = key.to_s
     backup.incr(key, amount) if backup
     server(key).incr(key, amount)
   end
 
   def decr(key, amount = 1)
+    return incr(key, -amount) if amount < 0
+
     key = key.to_s
     backup.decr(key, amount) if backup
     server(key).decr(key, amount)
