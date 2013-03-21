@@ -426,6 +426,7 @@ protected
     object
   rescue Exception => e
     $stderr.puts "Memcache read error: #{e.class} #{e.to_s} on key '#{key}' while unmarshalling value: #{value}"
+    $stderr.puts caller
     nil
   end
 
