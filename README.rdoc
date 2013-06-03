@@ -120,7 +120,7 @@ alternate backend server implementations. Right now, there are three basic, alte
                 duration of a request.
 
 [+PGServer+] This is an implementation of memcached functionality using SQL. It stores all
-             data in a single postgres table and uses +PGConn+ to select and update this
+             data in a single postgres table and uses +PGconn+ to select and update this
              table. This works well as a permanent cache or in the case when your objects
              are very large. It can also be used in a multi-level cache setup with
              <tt>Memcache::Server</tt> to provide persistence without sacrificing speed.

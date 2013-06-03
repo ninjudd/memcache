@@ -1,7 +1,9 @@
 pkg
+*~
 *.bundle
 *.so
 *.o
+Gemfile.lock
 Makefile
 mkmf.log
 *.gem

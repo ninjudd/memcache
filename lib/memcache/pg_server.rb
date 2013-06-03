@@ -1,5 +1,6 @@
 require 'active_record'
 require 'memcache/migration'
+require 'pg'
 
 class PGconn
   def self.quote_ident(name)
@@ -36,9 +37,10 @@ class Memcache
         SELECT key, value FROM #{table}
           WHERE key IN (#{keys}) AND #{prefix_clause} AND #{expiry_clause}
       }
+
       results = {}
-      db.query(sql).each do |key, value|
-        results[key] = value
+      db.query(sql).each do |row|
+        results[row['key']] = row['value']
       end
       results
     end
