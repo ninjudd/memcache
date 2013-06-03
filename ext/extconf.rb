@@ -59,5 +59,12 @@ if !ENV["EXTERNAL_LIB"]
   $LIBS << " -lmemcached_gem"
 end
 
+# ------------------------------------------------------
+# thanks to: https://gist.github.com/IanVaughan/5489431
 $CPPFLAGS += " -DRUBY_19" if RUBY_VERSION =~ /1.9/
+$CPPFLAGS += " -DRUBY_20" if RUBY_VERSION =~ /2.0/
+ 
+puts "*** Using Ruby version: #{RUBY_VERSION}"
+puts "*** with CPPFLAGS: #{$CPPFLAGS}"
+# ------------------------------------------------------
 create_makefile('memcache/native_server')
