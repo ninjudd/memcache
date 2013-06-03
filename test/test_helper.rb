@@ -4,7 +4,6 @@ require 'shoulda'
 require 'mocha/setup'
 require 'pp'
 
-$LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib')
 require 'memcache'
 
 class Test::Unit::TestCase
