@@ -9,6 +9,7 @@ Gem::Specification.new do |gem|
   gem.description   = %q{Ruby client for memcached supporting advanced protocol features and pluggable architecture.}
   gem.summary       = gem.description
   gem.homepage      = "https://github.com/ninjudd/memcache"
+  gem.license       = 'MIT'
 
   gem.add_development_dependency 'rake'
   gem.add_development_dependency 'shoulda', '3.0.1'
