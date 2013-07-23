@@ -12,9 +12,9 @@ class Memcache
       results = super(keys, cas)
       keys = {}
       keys_to_fetch = []
-      results.each do |key, value|
-        next unless segmented?(value)
-        keys[key] = segment_keys(value)
+      results.each do |key, result|
+        next unless segmented?(result)
+        keys[key] = segment_keys(result)
         keys_to_fetch.concat keys[key]
       end
 
@@ -22,7 +22,7 @@ class Memcache
       keys.each do |key, hashes|
         value = ''
         hashes.each do |hash_key|
-          if part = parts[hash_key]
+          if part = parts[hash_key][:value]
             value << part
           else
             value = nil
@@ -30,11 +30,8 @@ class Memcache
           end
         end
 
-        if value
-          value.memcache_cas   = results[key].memcache_cas
-          value.memcache_flags = results[key].memcache_flags ^ PARTIAL_VALUE
-        end
-        results[key] = value
+        results[key][:value] = value
+        results[key][:flags] ^= PARTIAL_VALUE
       end
       results
     end
@@ -66,18 +63,18 @@ class Memcache
     end
 
     def delete(key)
-      value  = super_get(key)
-      result = block_given? ? yield : super
-      if result and segmented?(value)
-        segment_keys(value).each {|k| super(k)}
+      result = super_get(key)
+      enable = block_given? ? yield : super
+      if enable and result and segmented?(result)
+        segment_keys(result).each {|k| super(k)}
       end
-      result
+      enable
     end
 
   private
 
-    def segmented?(value)
-      value.memcache_flags & PARTIAL_VALUE == PARTIAL_VALUE
+    def segmented?(result)
+      result[:flags] & PARTIAL_VALUE == PARTIAL_VALUE
     end
 
     def segment(key, value)
@@ -105,8 +102,8 @@ class Memcache
       end
     end
 
-    def segment_keys(value)
-      hash, num = value.split(':')
+    def segment_keys(result)
+      hash, num = result[:value].split(':')
       (0...num.to_i).collect {|i| "#{hash}:#{i}"}
     end
 

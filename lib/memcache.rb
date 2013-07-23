@@ -106,21 +106,24 @@ class Memcache
 
   def get(keys, opts = {})
     raise 'opts must be hash' unless opts.instance_of?(Hash)
-
     if keys.instance_of?(Array)
       keys = keys.collect {|key| key.to_s}
       multi_get(keys, opts)
     else
       key = keys.to_s
       if opts[:expiry]
-        value = server(key).gets(key)
-        cas(key, value, :raw => true, :cas => value.memcache_cas, :expiry => opts[:expiry]) if value
+        result = server(key).gets(key)
+        cas(key, result[:value], :raw => true, :cas => result[:cas], :expiry => opts[:expiry]) if result
       else
-        value = server(key).get(key, opts[:cas])
+        result = server(key).get(key, opts[:cas])
       end
 
-      return backup.get(key, opts) if backup and value.nil?
-      opts[:raw] ? value : unmarshal(value, key)
+      if result
+        result[:value] = unmarshal(result[:value], key) unless opts[:raw]
+        opts[:meta] ? result : result[:value]
+      elsif backup
+        backup.get(key, opts)
+      end
     end
   end
 
@@ -217,53 +220,54 @@ class Memcache
   end
 
   def update(key, opts = {})
-    key   = key.to_s
-    value = get(key, :cas => true)
-    if value
-      cas(key, yield(value), opts.merge!(:cas => value.memcache_cas))
+    key    = key.to_s
+    result = get(key, :cas => true, :meta => true)
+    if result
+      cas(key, yield(result[:value]), opts.merge!(:cas => result[:cas]))
     else
-      add(key, yield(value), opts)
+      add(key, yield(result[:value]), opts)
     end
   end
 
-  def get_or_add(key, *args)
+  def get_or_add(key, *args, &block)
     # Pseudo-atomic get and update.
     key = key.to_s
-    if block_given?
+    if block
       opts = args[0] || {}
-      get(key) || add(key, yield, opts) || get(key)
     else
       opts = args[1] || {}
-      get(key) || add(key, args[0], opts) || get(key)
+      block = lambda { args[0] }
     end
+    get(key, opts) || add(key, block.call(), opts) || get(key, opts)
   end
 
-  def get_or_set(key, *args)
+  def get_or_set(key, *args, &block)
     key = key.to_s
     if block_given?
       opts = args[0] || {}
-      get(key) || set(key, yield, opts)
     else
       opts = args[1] || {}
-      get(key) || set(key, args[0], opts)
+      block = lambda { args[0] }
     end
+    get(key, opts) || set(key, block.call(), opts)
   end
 
   def add_or_get(key, value, opts = {})
     # Try to add, but if that fails, get the existing value.
-    add(key, value, opts) || get(key)
+    add(key, value, opts) || get(key, opts)
   end
 
   def get_some(keys, opts = {})
-    keys = keys.collect {|key| key.to_s}
-    records = opts[:disable] ? {} : self.multi_get(keys, opts)
+    keys    = keys.collect {|key| key.to_s}
+    results = opts[:disable] ? {} : self.multi_get(keys, opts)
     if opts[:validation]
-      records.delete_if do |key, value|
+      results.delete_if do |key, result|
+        value = opts[:meta] ? result[:value] : result
         not opts[:validation].call(key, value)
       end
     end
 
-    keys_to_fetch = keys - records.keys
+    keys_to_fetch = keys - results.keys
     if keys_to_fetch.any?
       yield(keys_to_fetch).each do |key, value|
         begin
@@ -272,10 +276,10 @@ class Memcache
           raise if opts[:strict_write]
           $stderr.puts "Memcache error in get_some: #{e.class} #{e.to_s} on key '#{key}' while storing value: #{value}"
         end
-        records[key] = value
+        results[key] = opts[:meta] ? {:value => value} : value
       end
     end
-    records
+    results
   end
 
   def lock(key, opts = {})
@@ -385,8 +389,9 @@ protected
 
     results = {}
     fetch_results = lambda do |server, keys|
-      server.get(keys, opts[:cas]).each do |key, value|
-        results[key] = opts[:raw] ? value : unmarshal(value, key)
+      server.get(keys, opts[:cas]).each do |key, result|
+        result[:value] = unmarshal(result[:value], key) unless opts[:raw]
+        results[key] = opts[:meta] ? result : result[:value]
       end
     end
 
@@ -419,13 +424,7 @@ protected
 
   def unmarshal(value, key = nil)
     return value if value.nil?
-
-    object = Marshal.load(value)
-    if not object.frozen?
-      object.memcache_flags = value.memcache_flags
-      object.memcache_cas   = value.memcache_cas
-    end
-    object
+    Marshal.load(value)
   rescue Exception => e
     $stderr.puts "Memcache read error: #{e.class} #{e.to_s} on key '#{key}' while unmarshalling value: #{value}"
     $stderr.puts caller
@@ -473,9 +472,4 @@ protected
   def self.pool
     @@cache_pool ||= Pool.new
   end
-end
-
-# Add flags and cas
-class Object
-  attr_accessor :memcache_flags, :memcache_cas
 end

@@ -17,6 +17,7 @@ class MemcacheTest < Test::Unit::TestCase
 
     keys = (0..200).collect {|key| key.to_s}
     results = m.get(keys)
+
     assert_equal 100, results.size
     results.each do |key, value|
       assert_equal key.to_i, value
@@ -242,10 +243,10 @@ class MemcacheTest < Test::Unit::TestCase
 
   def test_flags
     m.set('foo', :foo, :flags => 43)
-    assert_equal 43, m.get('foo').memcache_flags
+    assert_equal 43, m.get('foo', :meta => true)[:flags]
 
     m.set('foo', 'foo', :raw => true, :flags => 43)
-    assert_equal 43, m.get('foo', :raw => true).memcache_flags
+    assert_equal 43, m.get('foo', :raw => true, :meta => true)[:flags]
   end
 
   def test_clone

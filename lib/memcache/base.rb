@@ -13,8 +13,10 @@ class Memcache
     end
 
     def incr(key, amount = 1)
-      value = get(key)
-      return unless value
+      result = get(key)
+      return unless result
+
+      value = result[:value]
       return unless value =~ /^\d+$/
 
       value = value.to_i + amount
@@ -45,13 +47,13 @@ class Memcache
     def append(key, value)
       existing = get(key)
       return false if existing.nil?
-      set(key, existing + value) && true
+      set(key, existing[:value] + value) && true
     end
 
     def prepend(key, value)
       existing = get(key)
       return false if existing.nil?
-      set(key, value + existing) && true
+      set(key, value + existing[:value]) && true
     end
 
   protected

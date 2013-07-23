@@ -1,7 +1,7 @@
 class Memcache
   class LocalServer < Base
     def initialize
-      @data = {}
+      @data   = {}
       @expiry = {}
     end
 
@@ -26,9 +26,9 @@ class Memcache
       if keys.kind_of?(Array)
         hash = {}
         keys.each do |key|
-          key = key.to_s
-          val = get(key)
-          hash[key] = val if val
+          key    = key.to_s
+          result = get(key)
+          hash[key] = result if result
         end
         hash
       else
@@ -43,7 +43,7 @@ class Memcache
 
     def set(key, value, expiry = 0, flags = 0)
       key = cache_key(key)
-      @data[key] = value.to_s
+      @data[key] = {:value => value.to_s, :flags => flags}
       expiry = Time.at(expiry) if expiry > 60*60*24*30
       if expiry.kind_of?(Time)
         @expiry[key] = expiry

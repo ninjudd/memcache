@@ -20,6 +20,9 @@ VALUE sym_binary;
 VALUE sym_servers;
 VALUE sym_ketama;
 VALUE sym_ketama_weighted;
+VALUE sym_value;
+VALUE sym_flags;
+VALUE sym_cas;
 
 ID id_default;
 ID id_md5;
@@ -35,8 +38,6 @@ ID id_modula;
 ID id_consistent;
 ID id_ketama;
 ID id_ketama_spy;
-
-static ID iv_memcache_flags, iv_memcache_cas;
 
 static void mc_free(void *p) {
   memcached_free(p);
@@ -241,7 +242,7 @@ static bool use_binary(memcached_st* mc) {
 
 static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
   memcached_st *mc;
-  VALUE cas, keys, results, key, value;
+  VALUE cas, keys, results, key, result;
   VALUE scalar_key = Qnil;
   memcached_return status;
 
@@ -264,16 +265,17 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
     if (str == NULL) return Qnil;
 
     if (status == MEMCACHED_SUCCESS) {
-      value = rb_str_new(str, len);
-      rb_ivar_set(value, iv_memcache_flags, INT2NUM(flags));
+      result = rb_hash_new();
+      rb_hash_aset(result, sym_value, rb_str_new(str, len));
+      rb_hash_aset(result, sym_flags, INT2NUM(flags));
       free(str);
-      return value;
+      return result;
     } else {
       printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
       return Qnil;
     }
   } else {
-    memcached_result_st* result;
+    memcached_result_st* mc_result;
     size_t       num_keys, i;
     const char** key_strings;
     size_t*      key_lengths;
@@ -295,19 +297,21 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
 
     memcached_mget(mc, key_strings, key_lengths, num_keys);
 
-    while ((result = memcached_fetch_result(mc, NULL, &status))) {
+    while ((mc_result = memcached_fetch_result(mc, NULL, &status))) {
       if (escaped) {
-        key = unescape_key(memcached_result_key_value(result), memcached_result_key_length(result));
+        key = unescape_key(memcached_result_key_value(mc_result), memcached_result_key_length(mc_result));
       } else {
-        key = rb_str_new(memcached_result_key_value(result), memcached_result_key_length(result));
+        key = rb_str_new(memcached_result_key_value(mc_result), memcached_result_key_length(mc_result));
       }
 
       if (status == MEMCACHED_SUCCESS) {
-        value = rb_str_new(memcached_result_value(result), memcached_result_length(result));
-        rb_ivar_set(value, iv_memcache_flags, INT2NUM(memcached_result_flags(result)));
-        if (RTEST(cas)) rb_ivar_set(value, iv_memcache_cas, ULL2NUM(memcached_result_cas(result)));
-        memcached_result_free(result);
-        rb_hash_aset(results, key, value);
+        result = rb_hash_new();
+        rb_hash_aset(result, sym_value, rb_str_new(memcached_result_value(mc_result),
+                                                   memcached_result_length(mc_result)));
+        rb_hash_aset(result, sym_flags, INT2NUM(memcached_result_flags(mc_result)));
+        if (RTEST(cas)) rb_hash_aset(result, sym_cas, ULL2NUM(memcached_result_cas(mc_result)));
+        memcached_result_free(mc_result);
+        rb_hash_aset(results, key, result);
       } else {
         printf("Memcache read error: %s %u\n", memcached_strerror(mc, status), status);
       }
@@ -590,9 +594,9 @@ void Init_native_server() {
   sym_servers          = ID2SYM(rb_intern("servers"));
   sym_ketama           = ID2SYM(rb_intern("ketama"));
   sym_ketama_weighted  = ID2SYM(rb_intern("ketama_weighted"));
-
-  iv_memcache_flags = rb_intern("@memcache_flags");
-  iv_memcache_cas   = rb_intern("@memcache_cas");
+  sym_value            = ID2SYM(rb_intern("value"));
+  sym_flags            = ID2SYM(rb_intern("flags"));
+  sym_cas              = ID2SYM(rb_intern("cas"));
 
   id_default    = rb_intern("default");
   id_md5        = rb_intern("md5");

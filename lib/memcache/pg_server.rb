@@ -28,27 +28,30 @@ class Memcache
       db.exec("TRUNCATE #{table}")
     end
 
-    def get(keys)
+    def get(keys, cas = false)
+      # cas ignored for now
       return get([keys])[keys.to_s] unless keys.kind_of?(Array)
       return {} if keys.empty?
 
       keys = keys.collect {|key| quote(key.to_s)}.join(',')
       sql = %{
-        SELECT key, value FROM #{table}
+        SELECT key, value, flags FROM #{table}
           WHERE key IN (#{keys}) AND #{prefix_clause} AND #{expiry_clause}
       }
 
       results = {}
       db.query(sql).each do |row|
-        results[row['key']] = row['value']
+        results[row['key']] = {:value => row['value'], :flags => row['flags'].to_i}
       end
       results
     end
 
     def incr(key, amount = 1)
       transaction do
-        value = get(key)
-        return unless value
+        result = get(key)
+        return unless result
+
+        value = result[:value]
         return unless value =~ /^\d+$/
 
         value = value.to_i + amount
@@ -73,25 +76,25 @@ class Memcache
       result.cmdtuples == 1
     end
 
-    def set(key, value, expiry = 0)
+    def set(key, value, expiry = 0, flags = 0)
       transaction do
         delete(key)
-        insert(key, value, expiry)
+        insert(key, value, expiry, flags)
       end
       value
     end
 
-    def add(key, value, expiry = 0)
+    def add(key, value, expiry = 0, flags = 0)
       delete_expired(key)
-      insert(key, value, expiry)
+      insert(key, value, expiry, flags)
       value
     rescue PGError => e
       nil
     end
 
-    def replace(key, value, expiry = 0)
+    def replace(key, value, expiry = 0, flags = 0)
       delete_expired(key)
-      result = update(key, value, expiry)
+      result = update(key, value, expiry, flags)
       result.cmdtuples == 1 ? value : nil
     end
 
@@ -117,17 +120,20 @@ class Memcache
 
   private
 
-    def insert(key, value, expiry = 0)
+    def insert(key, value, expiry, flags)
       db.exec %{
-        INSERT INTO #{table} (prefix, key, value, updated_at, expires_at)
-          VALUES (#{quoted_prefix}, #{quote(key)}, #{quote(value)}, NOW(), #{expiry_sql(expiry)})
+        INSERT INTO #{table} (prefix, key, value, flags, updated_at, expires_at)
+          VALUES (#{quoted_prefix}, #{quote(key)}, #{quote(value)}, #{flags.to_i}, NOW(), #{expiry_sql(expiry)})
       }
     end
 
-    def update(key, value, expiry = 0)
+    def update(key, value, expiry, flags)
       db.exec %{
         UPDATE #{table}
-          SET value = #{quote(value)}, updated_at = NOW(), expires_at = #{expiry_sql(expiry)}
+          SET value = #{quote(value)}, 
+              flags = #{flags.to_i},
+              updated_at = NOW(),
+              expires_at = #{expiry_sql(expiry)}
           WHERE key = #{quote(key)} AND #{prefix_clause}
       }
     end

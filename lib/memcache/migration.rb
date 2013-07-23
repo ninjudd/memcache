@@ -9,6 +9,7 @@ class Memcache
         t.string    :prefix, :null => false
         t.string    :key,    :null => false
         t.text      :value,  :null => false
+        t.integer   :flags
         t.timestamp :expires_at
         t.timestamp :updated_at
       end

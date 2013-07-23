@@ -8,7 +8,7 @@ module MemcacheSegmentedTestHelper
     assert_not_equal '1,2,3,4,5,6,7,8,9,10', master_key
     assert_equal 7, segment_keys.size
 
-    assert_equal '1,2,3,4,5,6,7,8,9,10', m.get('fav_numbers')
+    assert_equal '1,2,3,4,5,6,7,8,9,10', m.get('fav_numbers')[:value]
     assert_equal true, m.delete('fav_numbers')
     assert_equal nil, m.get('fav_numbers')
 

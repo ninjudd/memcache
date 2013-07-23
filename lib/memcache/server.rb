@@ -94,11 +94,14 @@ class Memcache
         value = socket.read(length.to_i)
         match_response!(socket.read(2), "\r\n")
 
-        value.memcache_flags = flags.to_i
-        value.memcache_cas   = cas
+        result = {
+          :value => value,
+          :flags => flags.to_i,
+        }
+        result[:cas] = cas if cas
 
         key = input_key(key)
-        results[key] = value
+        results[key] = result
       end
       results
     end

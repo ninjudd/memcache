@@ -27,6 +27,6 @@ class MemcacheNativeServerTest < Test::Unit::TestCase
     m.close
 
     m.set('foo', 'foo')
-    assert_equal 'foo', m.get('foo')
+    assert_equal 'foo', m.get('foo')[:value]
   end
 end
