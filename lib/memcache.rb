@@ -421,8 +421,10 @@ protected
     return value if value.nil?
 
     object = Marshal.load(value)
-    object.memcache_flags = value.memcache_flags
-    object.memcache_cas   = value.memcache_cas
+    if not object.frozen?
+      object.memcache_flags = value.memcache_flags
+      object.memcache_cas   = value.memcache_cas
+    end
     object
   rescue Exception => e
     $stderr.puts "Memcache read error: #{e.class} #{e.to_s} on key '#{key}' while unmarshalling value: #{value}"

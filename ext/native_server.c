@@ -83,7 +83,7 @@ static memcached_hash_t hash_behavior(VALUE sym) {
   rb_raise(cMemcacheError, "Invalid hash behavior");
 }
 
-static memcached_hash_t distribution_behavior(VALUE sym) {
+static memcached_server_distribution_t distribution_behavior(VALUE sym) {
   ID id = SYM2ID(sym);
 
   if (id == id_modula     ) return MEMCACHED_DISTRIBUTION_MODULA;
@@ -295,7 +295,7 @@ static VALUE mc_get(int argc, VALUE *argv, VALUE self) {
 
     memcached_mget(mc, key_strings, key_lengths, num_keys);
 
-    while (result = memcached_fetch_result(mc, NULL, &status)) {
+    while ((result = memcached_fetch_result(mc, NULL, &status))) {
       if (escaped) {
         key = unescape_key(memcached_result_key_value(result), memcached_result_key_length(result));
       } else {

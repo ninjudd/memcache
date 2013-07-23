@@ -40,7 +40,7 @@ class Test::Unit::TestCase
         prefixes.each do |prefix|
           assert_equal prefix, m.prefix = prefix
           assert_equal prefix, m.prefix
-          super
+          super()
           assert_equal nil, m.prefix = nil
           assert_equal nil, m.prefix
         end
