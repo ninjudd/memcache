@@ -37,7 +37,8 @@ class Memcache
           @data[key]   = nil
           @expiry[key] = nil
         end
-        @data[key]
+        result = @data[key]
+        result.clone if result
       end
     end
 
