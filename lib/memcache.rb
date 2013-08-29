@@ -298,6 +298,7 @@ class Memcache
       sleep(WRITE_LOCK_WAIT) # just wait
     end
     yield
+  ensure
     unlock(key) unless opts[:keep]
   end
 
