@@ -8,7 +8,7 @@ HERE        = File.expand_path(File.dirname(__FILE__))
 BUNDLE      = Dir.glob("libmemcached-*.tar.gz").first
 BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
 
-$CXXFLAGS = " -std=gnu++98"
+$CXXFLAGS = " -std=gnu++98 -fPIC"
 
 if !ENV["EXTERNAL_LIB"]
   $includes    = " -I#{HERE}/include"
@@ -27,7 +27,7 @@ if !ENV["EXTERNAL_LIB"]
       raise "'#{cmd}' failed" unless system(cmd)
 
       Dir.chdir(BUNDLE_PATH) do
-        puts(cmd = "CFLAGS='-fPIC' ./configure --prefix=#{HERE} --without-memcached --disable-shared --disable-dependency-tracking #{ARGV.join(' ')} 2>&1")
+        puts(cmd = "./configure --prefix=#{HERE} --without-memcached --disable-shared --disable-dependency-tracking #{ARGV.join(' ')} 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
         puts(cmd = "make CXXFLAGS='#{$CXXFLAGS}' || true 2>&1")
