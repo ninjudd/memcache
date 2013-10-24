@@ -18,9 +18,6 @@ if !ENV["EXTERNAL_LIB"]
   $LIBPATH     = ["#{HERE}/lib"]
   $DEFLIBPATH  = []
 
-  ENV['CFLAGS']  = $CFLAGS
-  ENV['LDFLAGS'] = $LDFLAGS
-
   Dir.chdir(HERE) do
     if false and File.exist?("lib")
       puts "Libmemcached already built; run 'rake clean' first if you need to rebuild."
@@ -30,7 +27,7 @@ if !ENV["EXTERNAL_LIB"]
       raise "'#{cmd}' failed" unless system(cmd)
 
       Dir.chdir(BUNDLE_PATH) do
-        puts(cmd = "./configure --prefix=#{HERE} --enable-static --without-memcached --disable-dependency-tracking #{ARGV.join(' ')} 2>&1")
+        puts(cmd = "./configure --prefix=#{HERE} --without-memcached --disable-dependency-tracking #{ARGV.join(' ')} 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
         puts(cmd = "make CXXFLAGS='#{$CXXFLAGS}' 2>&1")
@@ -49,13 +46,11 @@ if !ENV["EXTERNAL_LIB"]
     # fix linking issue under solaris
     # https://github.com/ninjudd/memcache/issues/5
     Dir.chdir("#{HERE}/lib/amd64") do
-      system('cp -f libmemcached.a  ../libmemcached_gem.a')
-      system('cp -f libmemcached.la ../libmemcached_gem.la')
+      system('cp -f libmemcached.so ../libmemcached_gem.so')
     end
   else
     Dir.chdir("#{HERE}/lib") do
-      system('cp -f libmemcached.a  libmemcached_gem.a')
-      system('cp -f libmemcached.la libmemcached_gem.la')
+      system('cp -f libmemcached.so libmemcached_gem.so')
     end
   end
   
