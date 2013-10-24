@@ -11,11 +11,15 @@ BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
 $CXXFLAGS = " -std=gnu++98 -fPIC"
 
 if !ENV["EXTERNAL_LIB"]
-  includes       = " -I#{HERE}/include"
-  libraries      = " -L#{HERE}/lib"
-  ENV['CFLAGS']  = "#{includes} #{libraries} -fPIC #{ENV['CFLAGS']}"
-  ENV['LDFLAGS'] = "#{libraries} #{ENV['LDFLAGS']}"
-  ENV['LIBPATH'] = "#{HERE}/lib"
+  $includes    = " -I#{HERE}/include"
+  $libraries   = " -L#{HERE}/lib"
+  $CFLAGS      = "#{$includes} #{$libraries} #{ENV['CFLAGS']}"
+  $LDFLAGS     = "#{$libraries} #{ENV['LDFLAGS']}"
+  $LIBPATH     = ["#{HERE}/lib"]
+  $DEFLIBPATH  = []
+
+  ENV['CFLAGS']  = $CFLAGS
+  ENV['LDFLAGS'] = $LDFLAGS
 
   Dir.chdir(HERE) do
     if false and File.exist?("lib")
@@ -29,10 +33,10 @@ if !ENV["EXTERNAL_LIB"]
         puts(cmd = "./configure --prefix=#{HERE} --enable-static --without-memcached --disable-dependency-tracking #{ARGV.join(' ')} 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
-        puts(cmd = "make CXXFLAGS='#{$CXXFLAGS}' || true 2>&1")
+        puts(cmd = "make CXXFLAGS='#{$CXXFLAGS}' 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
-        puts(cmd = "make install || true 2>&1")
+        puts(cmd = "make install 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
       end
 
