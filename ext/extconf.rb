@@ -11,12 +11,11 @@ BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
 $CXXFLAGS = " -std=gnu++98 -fPIC"
 
 if !ENV["EXTERNAL_LIB"]
-  $includes    = " -I#{HERE}/include"
-  $libraries   = " -L#{HERE}/lib"
-  $CFLAGS      = "#{$includes} #{$libraries} #{$CFLAGS}"
-  $LDFLAGS     = "#{$libraries} #{$LDFLAGS}"
-  $LIBPATH     = ["#{HERE}/lib"]
-  $DEFLIBPATH  = []
+  includes       = " -I#{HERE}/include"
+  libraries      = " -L#{HERE}/lib"
+  ENV['CFLAGS']  = "#{includes} #{libraries} -fPIC #{ENV['CFLAGS']}"
+  ENV['LDFLAGS'] = "#{libraries} #{ENV['LDFLAGS']}"
+  ENV['LIBPATH'] = "#{HERE}/lib"
 
   Dir.chdir(HERE) do
     if false and File.exist?("lib")
