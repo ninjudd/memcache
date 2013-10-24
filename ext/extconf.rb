@@ -8,13 +8,13 @@ HERE        = File.expand_path(File.dirname(__FILE__))
 BUNDLE      = Dir.glob("libmemcached-*.tar.gz").first
 BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
 
-$CXXFLAGS = " -std=gnu++98"
+$CXXFLAGS = " -std=gnu++98 -fPIC"
 
 if !ENV["EXTERNAL_LIB"]
   $includes    = " -I#{HERE}/include"
   $libraries   = " -L#{HERE}/lib"
-  $CFLAGS      = "#{$includes} #{$libraries} #{$CFLAGS}"
-  $LDFLAGS     = "#{$libraries} #{$LDFLAGS}"
+  $CFLAGS      = "#{$includes} #{$libraries} #{ENV['CFLAGS']}"
+  $LDFLAGS     = "#{$libraries} #{ENV['LDFLAGS']}"
   $LIBPATH     = ["#{HERE}/lib"]
   $DEFLIBPATH  = []
 
@@ -27,13 +27,13 @@ if !ENV["EXTERNAL_LIB"]
       raise "'#{cmd}' failed" unless system(cmd)
 
       Dir.chdir(BUNDLE_PATH) do
-        puts(cmd = "env CFLAGS='-fPIC' ./configure --prefix=#{HERE} --without-memcached --disable-shared --disable-utils --disable-dependency-tracking #{ARGV.join(' ')} 2>&1")
+        puts(cmd = "./configure --prefix=#{HERE} --without-memcached --disable-dependency-tracking #{ARGV.join(' ')} 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
-        puts(cmd = "make CXXFLAGS='#{$CXXFLAGS}' || true 2>&1")
+        puts(cmd = "make CXXFLAGS='#{$CXXFLAGS}' 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
-        puts(cmd = "make install || true 2>&1")
+        puts(cmd = "make install 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
       end
 
@@ -46,13 +46,11 @@ if !ENV["EXTERNAL_LIB"]
     # fix linking issue under solaris
     # https://github.com/ninjudd/memcache/issues/5
     Dir.chdir("#{HERE}/lib/amd64") do
-      system('cp -f libmemcached.a  ../libmemcached_gem.a')
-      system('cp -f libmemcached.la ../libmemcached_gem.la')
+      system('cp -f libmemcached.so ../libmemcached_gem.so')
     end
   else
     Dir.chdir("#{HERE}/lib") do
-      system('cp -f libmemcached.a  libmemcached_gem.a')
-      system('cp -f libmemcached.la libmemcached_gem.la')
+      system('cp -f libmemcached.so libmemcached_gem.so')
     end
   end
   
