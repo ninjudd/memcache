@@ -20,7 +20,7 @@ class MemcacheNativeServerTest < Test::Unit::TestCase
     e = assert_raise(Memcache::Error) do
       m.set('foo', 'foo')
     end
-    assert_match 'SYSTEM ERROR', e.message
+    assert_match 'SERVER HAS FAILED', e.message
   end
 
   def test_close
