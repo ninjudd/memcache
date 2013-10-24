@@ -15,6 +15,8 @@ class Memcache
       @port         = opts[:port] || DEFAULT_PORT
       @strict_reads = opts[:strict_reads]
       @status       = 'NOT CONNECTED'
+      @retry_at     = nil
+      @socket       = nil
     end
 
     def clone
