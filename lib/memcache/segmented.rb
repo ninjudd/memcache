@@ -24,8 +24,9 @@ class Memcache
       keys.each do |key, hashes|
         value = ''
         hashes.each do |hash_key|
-          if part = parts[hash_key][:value]
-            value << part
+          part = parts[hash_key]
+          if part and part[:value]
+            value << part[:value]
           else
             value = nil
             break
