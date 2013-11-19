@@ -19,6 +19,8 @@ class Memcache
       end
 
       parts = super(keys_to_fetch)
+      return {} if parts.nil?
+
       keys.each do |key, hashes|
         value = ''
         hashes.each do |hash_key|
