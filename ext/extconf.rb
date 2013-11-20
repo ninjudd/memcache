@@ -46,11 +46,26 @@ if !ENV["EXTERNAL_LIB"]
     # fix linking issue under solaris
     # https://github.com/ninjudd/memcache/issues/5
     Dir.chdir("#{HERE}/lib/amd64") do
-      system('cp -f libmemcached.so ../libmemcached_gem.so')
+      # determine the extension
+      unless ['so', 'dylib', 'dll'].detect { |ext|
+        if File.exist?("#{HERE}/lib/amd64/libmemcached.#{ext}")
+          system("cp -f libmemcached.#{ext} ../libmemcached_gem.#{ext}")
+        end
+      }
+        raise 'Unknown libmembached extentions'
+        raise 'Unknown libmembached extention'
+      end
     end
   else
     Dir.chdir("#{HERE}/lib") do
-      system('cp -f libmemcached.so libmemcached_gem.so')
+      # determine the extension
+      unless ['so', 'dylib', 'dll'].detect { |ext|
+        if File.exist?("#{HERE}/lib/libmemcached.#{ext}")
+          system("cp -f libmemcached.#{ext} ../libmemcached_gem.#{ext}")
+        end
+      }
+        raise 'Unknown libmembached extentions'
+      end
     end
   end
   
