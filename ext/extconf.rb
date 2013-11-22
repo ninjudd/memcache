@@ -52,7 +52,6 @@ if !ENV["EXTERNAL_LIB"]
           system("cp -f libmemcached.#{ext} ../libmemcached_gem.#{ext}")
         end
       }
-        raise 'Unknown libmembached extentions'
         raise 'Unknown libmembached extention'
       end
     end
@@ -64,7 +63,7 @@ if !ENV["EXTERNAL_LIB"]
           system("cp -f libmemcached.#{ext} ../libmemcached_gem.#{ext}")
         end
       }
-        raise 'Unknown libmembached extentions'
+        raise 'Unknown libmembached extention'
       end
     end
   end
