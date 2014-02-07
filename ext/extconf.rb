@@ -40,7 +40,7 @@ if !ENV["EXTERNAL_LIB"]
       system("rm -rf #{BUNDLE_PATH}") unless ENV['DEBUG'] or ENV['DEV']
     end
   end
-  
+
   # Absolutely prevent the linker from picking up any other libmemcached
   if File.exists?("#{HERE}/lib/amd64/libmemcached.a")
     # fix linking issue under solaris
@@ -60,14 +60,14 @@ if !ENV["EXTERNAL_LIB"]
       # determine the extension
       unless ['so', 'dylib', 'dll'].detect { |ext|
         if File.exist?("#{HERE}/lib/libmemcached.#{ext}")
-          system("cp -f libmemcached.#{ext} ../libmemcached_gem.#{ext}")
+          system("cp -f libmemcached.#{ext} libmemcached_gem.#{ext}")
         end
       }
         raise 'Unknown libmembached extention'
       end
     end
   end
-  
+
   $LIBS << " -lmemcached_gem"
 end
 
@@ -75,7 +75,7 @@ end
 # thanks to: https://gist.github.com/IanVaughan/5489431
 $CPPFLAGS += " -DRUBY_19" if RUBY_VERSION =~ /1.9/
 $CPPFLAGS += " -DRUBY_20" if RUBY_VERSION =~ /2.0/
- 
+
 puts "*** Using Ruby version: #{RUBY_VERSION}"
 puts "*** with CPPFLAGS: #{$CPPFLAGS}"
 # ------------------------------------------------------
