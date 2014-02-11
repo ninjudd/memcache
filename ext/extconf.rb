@@ -10,6 +10,19 @@ BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
 
 $CXXFLAGS = " -std=gnu++98 -fPIC"
 
+def copy_gem(gem_dir)
+  Dir.chdir("#{HERE}/#{gem_dir}") do
+    # determine the extension
+    unless ['so', 'dylib', 'dll'].detect { |ext|
+      if File.exist?("#{HERE}/#{gem_dir}/libmemcached.#{ext}")
+        system("cp -f libmemcached.#{ext} #{HERE}/lib/libmemcached_gem.#{ext}")
+      end
+    }
+      raise 'Unknown libmemcached extension'
+    end
+  end
+end
+
 if !ENV["EXTERNAL_LIB"]
   $includes    = " -I#{HERE}/include"
   $libraries   = " -L#{HERE}/lib"
@@ -51,19 +64,6 @@ if !ENV["EXTERNAL_LIB"]
   end
 
   $LIBS << " -lmemcached_gem"
-end
-
-def copy_gem(gem_dir)
-  Dir.chdir("#{HERE}/#{gem_dir}") do
-    # determine the extension
-    unless ['so', 'dylib', 'dll'].detect { |ext|
-      if File.exist?("#{HERE}/#{gem_dir}/libmemcached.#{ext}")
-        system("cp -f libmemcached.#{ext} #{HERE}/lib/libmemcached_gem.#{ext}")
-      end
-    }
-      raise 'Unknown libmemcached extension'
-    end
-  end
 end
 
 # ------------------------------------------------------
