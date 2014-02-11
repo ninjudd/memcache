@@ -45,30 +45,25 @@ if !ENV["EXTERNAL_LIB"]
   if File.exists?("#{HERE}/lib/amd64/libmemcached.a")
     # fix linking issue under solaris
     # https://github.com/ninjudd/memcache/issues/5
-    Dir.chdir("#{HERE}/lib/amd64") do
-      # determine the extension
-      unless ['so', 'dylib', 'dll'].detect { |ext|
-        if File.exist?("#{HERE}/lib/amd64/libmemcached.#{ext}")
-          system("cp -f libmemcached.#{ext} ../libmemcached_gem.#{ext}")
-        end
-      }
-        raise 'Unknown libmembached extention'
-      end
-    end
+    copy_gem('/lib/amd64')
   else
-    Dir.chdir("#{HERE}/lib") do
-      # determine the extension
-      unless ['so', 'dylib', 'dll'].detect { |ext|
-        if File.exist?("#{HERE}/lib/libmemcached.#{ext}")
-          system("cp -f libmemcached.#{ext} libmemcached_gem.#{ext}")
-        end
-      }
-        raise 'Unknown libmembached extention'
-      end
-    end
+    copy_gem('lib')
   end
 
   $LIBS << " -lmemcached_gem"
+end
+
+def copy_gem(gem_dir)
+  Dir.chdir("#{HERE}/#{gem_dir}") do
+    # determine the extension
+    unless ['so', 'dylib', 'dll'].detect { |ext|
+      if File.exist?("#{HERE}/#{gem_dir}/libmemcached.#{ext}")
+        system("cp -f libmemcached.#{ext} #{HERE}/lib/libmemcached_gem.#{ext}")
+      end
+    }
+      raise 'Unknown libmemcached extension'
+    end
+  end
 end
 
 # ------------------------------------------------------
