@@ -12,14 +12,12 @@ $CXXFLAGS = " -std=gnu++98 -fPIC"
 
 def copy_gem(gem_dir)
   Dir.chdir("#{HERE}/#{gem_dir}") do
-    # determine the extension
-    unless ['so', 'dylib', 'dll'].detect { |ext|
+    # try the extensions in order
+    ['so', 'dylib', 'dll'].any? do |ext|
       if File.exist?("#{HERE}/#{gem_dir}/libmemcached.#{ext}")
         system("cp -f libmemcached.#{ext} #{HERE}/lib/libmemcached_gem.#{ext}")
       end
-    }
-      raise 'Unknown libmemcached extension'
-    end
+    end or raise 'Unknown libmemcached extension'
   end
 end
 
@@ -60,7 +58,7 @@ if !ENV["EXTERNAL_LIB"]
     # https://github.com/ninjudd/memcache/issues/5
     copy_gem('/lib/amd64')
   else
-    copy_gem('lib')
+    copy_gem('lib') 
   end
 
   $LIBS << " -lmemcached_gem"
