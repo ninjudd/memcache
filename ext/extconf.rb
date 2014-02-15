@@ -10,6 +10,19 @@ BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
 
 $CXXFLAGS = " -std=gnu++98 -fPIC"
 
+def copy_gem(gem_dir)
+  Dir.chdir("#{HERE}/#{gem_dir}") do
+    # determine the extension
+    unless ['so', 'dylib', 'dll'].detect { |ext|
+      if File.exist?("#{HERE}/#{gem_dir}/libmemcached.#{ext}")
+        system("cp -f libmemcached.#{ext} #{HERE}/lib/libmemcached_gem.#{ext}")
+      end
+    }
+      raise 'Unknown libmemcached extension'
+    end
+  end
+end
+
 if !ENV["EXTERNAL_LIB"]
   $includes    = " -I#{HERE}/include"
   $libraries   = " -L#{HERE}/lib"
@@ -40,20 +53,16 @@ if !ENV["EXTERNAL_LIB"]
       system("rm -rf #{BUNDLE_PATH}") unless ENV['DEBUG'] or ENV['DEV']
     end
   end
-  
+
   # Absolutely prevent the linker from picking up any other libmemcached
   if File.exists?("#{HERE}/lib/amd64/libmemcached.a")
     # fix linking issue under solaris
     # https://github.com/ninjudd/memcache/issues/5
-    Dir.chdir("#{HERE}/lib/amd64") do
-      system('cp -f libmemcached.so ../libmemcached_gem.so')
-    end
+    copy_gem('/lib/amd64')
   else
-    Dir.chdir("#{HERE}/lib") do
-      system('cp -f libmemcached.so libmemcached_gem.so')
-    end
+    copy_gem('lib')
   end
-  
+
   $LIBS << " -lmemcached_gem"
 end
 
@@ -61,7 +70,7 @@ end
 # thanks to: https://gist.github.com/IanVaughan/5489431
 $CPPFLAGS += " -DRUBY_19" if RUBY_VERSION =~ /1.9/
 $CPPFLAGS += " -DRUBY_20" if RUBY_VERSION =~ /2.0/
- 
+
 puts "*** Using Ruby version: #{RUBY_VERSION}"
 puts "*** with CPPFLAGS: #{$CPPFLAGS}"
 # ------------------------------------------------------
