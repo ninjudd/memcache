@@ -41,7 +41,7 @@ if !ENV["EXTERNAL_LIB"]
         puts(cmd = "./configure --prefix=#{HERE} --without-memcached --disable-dependency-tracking #{ARGV.join(' ')} 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
-        puts(cmd = "make CXXFLAGS='#{$CXXFLAGS}' 2>&1")
+        puts(cmd = "make CXXFLAGS=\"$CXXFLAGS #{$CXXFLAGS}\" 2>&1")
         raise "'#{cmd}' failed" unless system(cmd)
 
         puts(cmd = "make install 2>&1")
