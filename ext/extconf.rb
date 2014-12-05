@@ -8,7 +8,7 @@ HERE        = File.expand_path(File.dirname(__FILE__))
 BUNDLE      = Dir.glob("libmemcached-*.tar.gz").first
 BUNDLE_PATH = BUNDLE.sub(".tar.gz", "")
 
-$CXXFLAGS = " -std=gnu++98 -fPIC"
+$CXXFLAGS = " -std=gnu++0x -fPIC"
 
 def copy_gem(gem_dir)
   Dir.chdir("#{HERE}/#{gem_dir}") do
