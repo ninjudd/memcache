@@ -103,7 +103,7 @@ changes:
 
 === Implementation
 
-The underlying architechture of _memcache_ is more modular than memcache-client.
+The underlying architecture of _memcache_ is more modular than memcache-client.
 A given +Memcache+ instance has a group of servers, just like before, but much more of the
 functionality is encapsulated inside the <tt>Memcache::Server</tt> object. Really, a +Server+
 object is a thin wrapper around an remote memcached server that takes care of the socket
