@@ -153,7 +153,7 @@ static VALUE mc_initialize(VALUE self, VALUE opts) {
   return self;
 }
 
-#if defined(RUBY_19) || defined(RUBY_20)
+#if defined(RUBY_19) || defined(RUBY_20) || defined(RUBY_21) || defined(RUBY_22)
 #define RSTRING_SET_LEN(str, newlen) (rb_str_set_len(str, new_len))
 #else
 #define RSTRING_SET_LEN(str, newlen) (RSTRING(str)->len = new_len)
